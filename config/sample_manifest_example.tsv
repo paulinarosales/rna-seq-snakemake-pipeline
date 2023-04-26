@@ -1,0 +1,3 @@
+Identifier	Sample_type	Treatment	Bio_rep	Target_genome	Sequencer	Code	Pair	Fastq_handle
+22L016498	mESC	untreated	1	M25	NovaSeq	A	AB	29.fastq.gz
+22L016499	mESC	auxin-treated	1	M25	NovaSeq	B	AB	30.fastq.gz

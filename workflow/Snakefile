@@ -1,0 +1,139 @@
+# Snakefile for general RNA-Seq analysis
+
+import os
+import pandas as pd
+import requests
+import urllib3
+from pathlib2 import Path
+from snakemake.utils import min_version
+from snakemake.logging import logger
+
+# Necessary to handle HTTP remote to download reference genome
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
+
+# Minimal version of snakemake
+min_version('6.8.0')
+
+# Load Snakemake config 
+configfile: "config/config_template.yaml"
+
+# --------------------------- Read config file ---------------------------- #
+
+RESULTS_DIR = Path(config['RESULTS_DIR'])
+FIGURE_DIR = Path(config['FIGURE_DIR'])
+QC_DIR = Path(config['QC_DIR'])
+
+EXTERNAL_DATA_DIR = Path(config['EXTERNAL_DATA_DIR'])
+FASTQ_DIR = Path(config['FASTQ_DIR'])
+GENOME_INDEX_DIR = Path(config['GENOME_INDEX_DIR'])
+
+LOG_DIR = Path(config['LOG_DIR'])
+TEMP_DIR = Path(config['TEMP_DIR'])
+REPORT_DIR = Path(config['REPORT_DIR'])
+
+SUBSET_COLUMN = config['SUBSET_COLUMN']
+
+# --------------------------- Read sample manifest ---------------------------- #
+SAMPLE_MANIFEST = pd.read_table(Path(config['SAMPLE_MANIFEST']))
+
+# Specify the sample info combinations to use as label per sample
+SAMPLES = SAMPLE_MANIFEST.set_index(['Sample_type',
+                                     'Treatment',
+                                     'Bio_rep'])
+
+
+# --------------------------- Dictitonaries ---------------------------- #
+
+# GENCODE realeases dictionary (realease -> genome name # UCSC genome equivalent)
+GENCODE_VERSIONS = {
+    'M25': 'GRCm38', # mm10
+    'M32': 'GRCm39', # mm39
+    '19': 'GRCh37', # h19
+    '38': 'GRCh38', # h38 
+    # 'M1': 'NCBI37' # mm9 uses different handle
+}
+
+# Output files dictionary
+TARGETS = {'raw_seq': [], 
+            'trimmed': [],
+            'hisat2': [],
+            'samtools': [],
+            'salmon': [],
+            'unaligned_reads': []
+            }
+    
+# as array for different genomes?
+GENCODE_REALEASE = pd.unique(SAMPLES['Target_genome'])[0]
+GENOME = GENCODE_VERSIONS[GENCODE_REALEASE]
+
+for sample_type, treatment, bio_rep in SAMPLES.index:
+    # Selects samples with specified value on a given column in the sample manifest (USE CONFIG FILE TO SELECT)
+    if SUBSET_COLUMN:
+        if SAMPLES.loc[(sample_type, treatment, bio_rep), SUBSET_COLUMN] == config['SUBSET_VALUE']: 
+            TARGETS['raw_seq'].append(str(FASTQ_DIR / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz'))
+            TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
+            TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
+            TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
+            TARGETS['salmon'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
+            TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads_hisat2' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
+    else:
+        TARGETS['raw_seq'].append(str(FASTQ_DIR / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz'))
+        TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
+        TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
+        TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
+        TARGETS['salmon'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
+        TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads_hisat2' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
+        # TARGETS['tximeta'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
+        
+
+# --------------------------- Import rules ---------------------------- #
+
+# --------- Raw procesing 
+include: 'rules/alignment/trim_galore.smk'
+include: 'rules/external_data/get_ref_sequences.smk'
+include: 'rules/alignment/hisat2.smk'
+include: 'rules/alignment/samtools.smk'
+include: 'rules/alignment/salmon.smk'
+include: 'rules/quality_control/unaligned_read_blast.smk'
+
+# --------- Downstream analysis
+include: 'rules/read_counts/counts_parsing.smk'
+include: 'rules/external_data/get_ensembl_geneset.smk'
+include: 'rules/downstream_analysis/deseq2.smk'
+
+
+rule multiqc_report:
+    output:
+        base = directory(str(REPORT_DIR / 'multiqc'))
+    params:
+        # LOG_DIR = Path(config['LOG_DIR']),
+        # TEMP_DIR = Path(config['TEMP_DIR']),
+        # REPORT_DIR = Path(config['REPORT_DIR'])
+    log:
+        str(LOG_DIR / 'multiqc' / 'multiqc.log')
+    threads: 1
+    conda:
+        'envs/quality_control/multiqc.yaml'
+    shell:
+        """
+        multiqc --force --interactive \
+        -o {output.base} -n multiqc_report.html \
+        {REPORT_DIR} {RESULTS_DIR} {LOG_DIR} &> {log}
+        """
+
+rule all:
+    input:
+        # TARGETS
+        # TARGETS['raw_seq'],
+        expand('resources/external/gencode_{realease}/{genome}_genome.fa.gz', realease=GENCODE_REALEASE, genome=GENOME),
+        TARGETS['trimmed'],
+        TARGETS['hisat2'],
+        TARGETS['samtools'],
+        TARGETS['salmon'],
+        # TARGETS['unaligned_reads'],
+        # 'results/quality_control/unaligned_reads_hisat2/unaligned_sequences.tsv'
+        str(REPORT_DIR / 'multiqc'),
+        'results/read_counts/tximeta/GeneSE_counts.tsv',
+        'results/downstream_analysis/differential_expr/DESeqDataSets.RData',
+        'results/downstream_analysis/differential_expr/de_contrast.Rds'
+    default_target: True

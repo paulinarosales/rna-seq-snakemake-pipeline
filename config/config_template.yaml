@@ -1,0 +1,51 @@
+# --------------------------- Default file paths ---------------------------- #
+SAMPLE_MANIFEST: 'config/sample_manifest.tsv'
+
+RESULTS_DIR: 'results'
+FIGURE_DIR: 'results/figures'
+QC_DIR: 'results/quality_control'
+
+EXTERNAL_DATA_DIR: 'resources/external'
+FASTQ_DIR: 'resources/raw_data'
+GENOME_INDEX_DIR: 'resources/external/index'
+
+LOG_DIR: 'logs'
+TEMP_DIR: 'temp_data'
+REPORT_DIR: 'reports'
+
+
+# --------------------------- Handles (?) ---------------------------- #
+
+
+SUBSET_COLUMN: ''
+SUBSET_VALUE: ''
+
+replicates: 'no'
+
+# --------------------------- Params for raw processing ---------------------------- #
+
+TRIM_GALORE:
+    HISEQ: '--quality 20'
+    NOVASEQ: '--2colour 20'
+    NEXTSEQ: '--2colour 20'
+#    lenght: 20
+
+HISAT2:
+    KM: 5
+
+SAMTOOLS:
+    MIN_MAPQ: 20
+
+UNALIGNED_READS:
+    HEAD_N: 10
+    FRACTION: 0.1
+
+# --------------------------- Params for downstream analysis ---------------------------- #
+
+ENSEMBL_VERSION: 108
+
+LOW_READS_THRESHOLD: 10
+
+DESEQ2:
+    PADJ_THRESHOLD: 1
+    PADJ_THRESHOLD: 0.05

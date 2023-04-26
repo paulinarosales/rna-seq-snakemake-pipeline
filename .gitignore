@@ -1,0 +1,4 @@
+results/*
+resources/*
+logs/*
+config/sample_manifest.tsv
