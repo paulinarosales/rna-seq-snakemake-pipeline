@@ -2,7 +2,7 @@
 
 <blockquote class="callout warning">
   <h4>⚠️ Warning</h4>
-  <p>To use this pipeline use the Fork option, on the top right of the repo.</p>
+  <p>To use this pipeline use the <b>Fork</b> option, on the top right of the repo.</p>
 </blockquote>
 
 ## Description
@@ -23,14 +23,15 @@ This is the current workflow for the snakemake rules.
     2. **Sample_type:** Tissue, cell type, etc.
     3. **Treatment**: Condition (treated/untreated, fed/starved, etc.)
     4. **Bio_rep:** Biological replicate number
-    5. **Target_genome:** ENCODE target genome for sequencing (*supported options:* M1, M25, 19, 38)
+    5. **Target_genome:** ENCODE target genome for sequencing (*supported options:* M25, M32, 19, 38)
     6. **Sequencer**: Sequencer to define —2colour parameter for the trimming (*supported options:* HiSeq4000, NovaSeq, NextSeq500)
     7. **Code:** Single factor defined by important characteristics for 1-1 comparisons for downstream analysis (A, B, C…)
     8. **Pair:** Two factor combination indicating which samples should be compared using the code (AB, AC, BC…)
     9. **Fastq_handle:** Particular handle useful for raw `.fastq.gz` files selection using the name from the facility (number, extension, etc.)
 
-   
-     > Sample manifest example available [here](./config/sample_manifest_example.tsv).
+
+        > Sample manifest example available [here](./config/sample_manifest_example.tsv).
+<br/><br/>
 
 3. Copy raw sequencing data. For this there are 2 `input` options (data with 2 sequencing lanes, unique lane/merged files).
     1. **For `fastq.gz` files from 2 sequencing lanes.** Copy _all_ your `fastq.gz` to `resources/fastq_seq/raw`, with no additional subfolder and keeping the original facility names (see bellow for the usual facility filenames). Your folder should look like this:
@@ -42,13 +43,13 @@ This is the current workflow for the snakemake rules.
             ├── {Identifier}_S{Fastq_handle}_L001_R2_001.fastq.gz
             └── {Identifier}_S{Fastq_handle}_L002_R2_001.fastq.gz
         ```
-
+    
     As a result you should have 4 `fastq.gz` files per sample (2 reads with 2 lanes each).
    
 
     <blockquote class="callout warning">
     <h4>⚠️ Warning</h4>
-    <p> Note that the `{wildcards}` correspond to the columns on the `config/sample_manifest.tsv`.</p>
+    <p> Note that the <code>{wildcards}</code> correspond to the columns on the <code>config/sample_manifest.tsv </code>.</p>
     </blockquote>
 
     2. **For `fastq.gz` files from merged lanes or unique.** Manually copy your `fastq.gz` to `resources/fastq_seq/merged`, with a subfolder for each sample, named using the following structure:
@@ -65,11 +66,12 @@ This is the current workflow for the snakemake rules.
                 └── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R2.fq.gz
          ```
 
+
     As a result you should have 2 `fq.gz` files per sample (2 reads each).
 
     <blockquote class="callout warning">
     <h4>⚠️ Warning</h4>
-    <p> Note that the `{wildcards}` correspond to the columns on the `config/sample_manifest.tsv`. And the extension is `fq.gz` instead of `fastq.gz`.</p>
+    <p> Note that the <code>{wildcards}</code> correspond to the columns on the  <code>config/sample_manifest.tsv </code>. And the extension is  <code>fq.gz </code> instead of  <code>fastq.gz </code>.</p>
     </blockquote>
 
 4. Change processing parameters on your `config/config.yaml`.
@@ -90,14 +92,16 @@ This is the current workflow for the snakemake rules.
         |       └── raw or merged
         └── workflow
     ```
-
+    
     Use the following command on your project folder:
 
     ```
         snakemake --profile profiles/<YOUR_PROFILE> --use-conda -j<N_JOBS>
     ```
 
-    > For more options check the [--help](https://snakemake.readthedocs.io/en/stable/executing/cli.html)
+<br/><br/>
+
+> For more options checkout the [--help](https://snakemake.readthedocs.io/en/stable/executing/cli.html)
 
     
 ## Important notes
@@ -121,7 +125,6 @@ This is the current workflow for the snakemake rules.
     | Human | 19 | GRCh37 | h19 |
     | Human | 38 | GRCh38 | h38 |
 
-<!-->    | Mouse | M1 | NCBI27 | 65 | mm9 | -->
 
 
 ## Authors and acknowledgment
@@ -132,4 +135,4 @@ Paulina Rosales-Becerra, Kevin Brokers, Saulius Lukauskas & Robert Schneider
 paulina.rosales@helmholtz-muenchen.de
 
 ## Project status
-
+Actual version works just fine :)

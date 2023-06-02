@@ -6,3 +6,4 @@ config/config.yaml
 .DS_Store
 workflow/.DS_Store
 workflow/scripts/.DS_Store
+.snakemake
