@@ -32,17 +32,45 @@ This is the current workflow for the snakemake rules.
    
      > Sample manifest example available [here](./config/sample_manifest_example.tsv).
 
-3. Copy your raw sequencing data to `resources/raw_data`, the names of the files must correspond to the values indicated on the sample manifest columns, using the following structure:
+3. Copy raw sequencing data. For this there are 2 `input` options (data with 2 sequencing lanes, unique lane/merged files).
+    1. **For `fastq.gz` files from 2 sequencing lanes.** Copy _all_ your `fastq.gz` to `resources/fastq_seq/raw`, with no additional subfolder and keeping the original facility names (see bellow for the usual facility filenames). Your folder should look like this:
 
-    ```
-        # Read 1
-        {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R1.fastq.gz
+        ```    
+        resources/fastq_seq/raw
+            ├── {Identifier}_S{Fastq_handle}_L001_R1_001.fastq.gz
+            ├── {Identifier}_S{Fastq_handle}_L002_R1_001.fastq.gz
+            ├── {Identifier}_S{Fastq_handle}_L001_R2_001.fastq.gz
+            └── {Identifier}_S{Fastq_handle}_L002_R2_001.fastq.gz
+        ```
 
-        # Read 2
-        {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R2.fastq.gz
-    ```
+    As a result you should have 4 `fastq.gz` files per sample (2 reads with 2 lanes each).
+   
 
-    The names inside the `{}` correspond to the column name on the `config/sample_manifest.tsv`.
+    <blockquote class="callout warning">
+    <h4>⚠️ Warning</h4>
+    <p> Note that the `{wildcards}` correspond to the columns on the `config/sample_manifest.tsv`.</p>
+    </blockquote>
+
+    2. **For `fastq.gz` files from merged lanes or unique.** Manually copy your `fastq.gz` to `resources/fastq_seq/merged`, with a subfolder for each sample, named using the following structure:
+
+
+        ```    
+        resources/fastq_seq/merged
+            ├── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}
+            │   ├── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R1.fq.gz
+            │   └── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R2.fq.gz
+            │
+            └── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}
+                ├── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R1.fq.gz
+                └── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R2.fq.gz
+         ```
+
+    As a result you should have 2 `fq.gz` files per sample (2 reads each).
+
+    <blockquote class="callout warning">
+    <h4>⚠️ Warning</h4>
+    <p> Note that the `{wildcards}` correspond to the columns on the `config/sample_manifest.tsv`. And the extension is `fq.gz` instead of `fastq.gz`.</p>
+    </blockquote>
 
 4. Change processing parameters on your `config/config.yaml`.
 
@@ -58,9 +86,8 @@ This is the current workflow for the snakemake rules.
         ├── profiles
         |   └── profile
         ├── resources
-        |   └── raw_data
-        |        ├── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R1.fastq.gz
-        |        └── {Sample_type}_{Treatment}_Bio-rep_{Bio_rep}_R2.fastq.gz
+        |   └── fastq_seq
+        |       └── raw or merged
         └── workflow
     ```
 
@@ -78,10 +105,13 @@ This is the current workflow for the snakemake rules.
 - This pipeline only works with _paired-end_ Illumnia sequencing reads <!-- and trimming depending on the specified `Sequencer` in a color-chemistry aware mode. -->
 
 
+- The original pipeline has a `merge_fq_lanes` rule adapted for particular `input fastq.gz filenames`, for more information check **step 3 on Getting started.**
+
+
 - The default configurations for this workflow are suitable to run snakemake on the `Helmholtz-Munich HPC` and using conda to deal with software dependencies. If one wishes to run the pipeline on a different computing platform, the profiles need to be adapted accordingly.
 
 
-- The pipeline only supports GENCODE genomes as reference, choose the right `GENCODE Realease` as value for the `Target_genome` entry in your `confi/sample_manifest.tsv`. These are the equivalent realeases for GENCODE and UCSC databases:
+- The pipeline only supports GENCODE genomes as reference, choose the right `GENCODE Realease` as value for the `Target_genome` entry in your `config/sample_manifest.tsv`. These are the equivalent realeases for GENCODE and UCSC databases:
 
 
     | Organism | GENCODE Realease | GENCODE Genome | UCSC Genome |
@@ -96,7 +126,7 @@ This is the current workflow for the snakemake rules.
 
 ## Authors and acknowledgment
 
-Paulina Rosales, Kevin Brokers, Saulius Lukauskas & Robert Schneider
+Paulina Rosales-Becerra, Kevin Brokers, Saulius Lukauskas & Robert Schneider
 
 ## Contact
 paulina.rosales@helmholtz-muenchen.de

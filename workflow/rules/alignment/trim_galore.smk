@@ -38,8 +38,8 @@ rule trim_galore:
     input:
         # fq_1 = str(FASTQ_DIR / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fastq.gz'),
         # fq_2 =  str(FASTQ_DIR / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fastq.gz')
-        fq_1 = 'resources/raw_data/{sample_type}_{treatment}_Bio-rep_{bio_rep}/{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz',
-        fq_2 = 'resources/raw_data/{sample_type}_{treatment}_Bio-rep_{bio_rep}/{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'
+        fq_1 = 'resources/fastq_seq/merged/{sample_type}_{treatment}_Bio-rep_{bio_rep}/{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz',
+        fq_2 = 'resources/fastq_seq/merged/{sample_type}_{treatment}_Bio-rep_{bio_rep}/{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'
     output:
         # str(TEMP_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'),
         # str(TEMP_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz_trimming_report.txt'),

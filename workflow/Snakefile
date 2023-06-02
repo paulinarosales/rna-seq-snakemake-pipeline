@@ -67,17 +67,21 @@ GENCODE_REALEASE = pd.unique(SAMPLES['Target_genome'])[0]
 GENOME = GENCODE_VERSIONS[GENCODE_REALEASE]
 
 for sample_type, treatment, bio_rep in SAMPLES.index:
+    identifier = SAMPLES.loc[(sample_type, treatment, bio_rep), 'Identifier']
+    handle = SAMPLES.loc[(sample_type, treatment, bio_rep), 'Fastq_handle']
     # Selects samples with specified value on a given column in the sample manifest (USE CONFIG FILE TO SELECT)
     if SUBSET_COLUMN:
-        if SAMPLES.loc[(sample_type, treatment, bio_rep), SUBSET_COLUMN] == config['SUBSET_VALUE']: 
-            TARGETS['raw_seq'].append(str(FASTQ_DIR / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz'))
+        if SAMPLES.loc[(sample_type, treatment, bio_rep), SUBSET_COLUMN] == config['SUBSET_VALUE']:
+            TARGETS['raw_seq'].append(str(FASTQ_DIR / 'raw'/ f'{identifier}_S{handle}_L002_R2_001.fastq.gz'))
+            TARGETS['merged_fq'].append(str(FASTQ_DIR / 'merged'/ f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'))
             TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
             TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
             TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
             TARGETS['salmon'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
             TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads_hisat2' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
     else:
-        TARGETS['raw_seq'].append(str(FASTQ_DIR / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz'))
+        TARGETS['raw_seq'].append(str(FASTQ_DIR / 'raw'/ f'{identifier}_S{handle}_L002_R2_001.fastq.gz'))
+        TARGETS['merged_fq'].append(str(FASTQ_DIR / 'merged'/ f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'))
         TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
         TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
         TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
@@ -89,6 +93,7 @@ for sample_type, treatment, bio_rep in SAMPLES.index:
 # --------------------------- Import rules ---------------------------- #
 
 # --------- Raw procesing 
+include: 'rules/external_data/merge_lanes.smk'
 include: 'rules/alignment/trim_galore.smk'
 include: 'rules/external_data/get_ref_sequences.smk'
 include: 'rules/alignment/hisat2.smk'
@@ -126,6 +131,8 @@ rule all:
         # TARGETS
         # TARGETS['raw_seq'],
         expand('resources/external/gencode_{realease}/{genome}_genome.fa.gz', realease=GENCODE_REALEASE, genome=GENOME),
+        TARGETS['raw_seq'],
+        TARGETS['merged_fq'],
         TARGETS['trimmed'],
         TARGETS['hisat2'],
         TARGETS['samtools'],

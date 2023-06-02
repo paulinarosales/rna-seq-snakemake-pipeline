@@ -6,7 +6,7 @@ FIGURE_DIR: 'results/figures'
 QC_DIR: 'results/quality_control'
 
 EXTERNAL_DATA_DIR: 'resources/external'
-FASTQ_DIR: 'resources/raw_data'
+FASTQ_DIR: 'resources/fastq_seq'
 GENOME_INDEX_DIR: 'resources/external/index'
 
 LOG_DIR: 'logs'
