@@ -21,8 +21,6 @@ rule merge_fq_lanes:
         merged_fq1 = 'resources/fastq_seq/merged/{sample_type}_{treatment}_Bio-rep_{bio_rep}/{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz',
         merged_fq2 = 'resources/fastq_seq/merged/{sample_type}_{treatment}_Bio-rep_{bio_rep}/{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'
     threads: 6
-    resources: 
-        tmpdir = '/mnt/vol1/tmp'
     shell:
         """
             mkdir -p {output.outdir} && \
