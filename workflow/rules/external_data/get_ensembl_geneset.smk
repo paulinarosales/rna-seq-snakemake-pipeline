@@ -6,7 +6,6 @@ def _biomart_handles(wildcards):
         _organism = 'hsapiens_gene_ensembl'
         _geneset = 'hgnc_symbol'
     return  {'ensembl_dataset': _organism, 'gene_symbol': _geneset, 'ensembl_version': config['ENSEMBL_VERSION']}
-    # return  [_organism, _geneset, config['ENSEMBL_VERSION']]
 
 rule ensembl_geneset:
     output:

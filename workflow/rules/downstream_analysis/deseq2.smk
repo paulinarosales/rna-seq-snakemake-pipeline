@@ -17,23 +17,21 @@ rule deseq_model:
         '../../scripts/differential_expr/deseq_model.R'
 
 def _input_de_analysis(wildcards):
-    # unpack(_biomart_handles)
-    # return f'resources/external/genesets/{ensembl_dataset}_v{ensembl_version}_geneset.tsv'
     return expand('resources/external/genesets/{genome}_ensembl_geneset.tsv', genome=GENOME)
 
 
 rule de_analysis:
     input:
         ddsCollapsedRds = 'results/downstream_analysis/differential_expr/dds_collapsed.Rds',
-        ensembl_geneset = _input_de_analysis,
-        sample_manifest = config['SAMPLE_MANIFEST']
+        ensembl_geneset = _input_de_analysis
     output:
-        contrastRds = 'results/downstream_analysis/differential_expr/de_contrast.Rds',
-        degs_dir =  directory('results/downstream_analysis/differential_expr/degs')
+        degs_summaryTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_summary.tsv',
+        degs_dir =  directory('results/downstream_analysis/differential_expr/DEGs')
     log:
         'logs/deseq2/de_analysis.log'
     params:
-        log2fc_th = config['DESEQ2']['PADJ_THRESHOLD'],
+        fdr_th = config['DESEQ2']['FDR_THRESHOLD'],
+        log2fc_th = config['DESEQ2']['LOG2FC_THRESHOLD'],
         padj_th = config['DESEQ2']['PADJ_THRESHOLD']
     conda:
         '../../envs/downstream_analysis/differential_expr.yaml'
