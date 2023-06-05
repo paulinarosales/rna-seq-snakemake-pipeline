@@ -5,8 +5,8 @@ rule deseq_model:
     input:
         gse_countsRds = 'results/read_counts/tximeta/GeneSE_counts.Rds'
     output:
-        ddsRds = 'results/downstream_analysis/differential_expr/raw_dds.Rds',
-        ddsCollapsedRds = 'results/downstream_analysis/differential_expr/dds_collapsed.Rds'
+        ddsRds = 'results/downstream_analysis/differential_expr/dds.Rds',
+        tcountsRData = 'results/downstream_analysis/differential_expr/transformed_counts.RData'
     log:
         'logs/deseq2/dds_object.log'
     params:
@@ -22,11 +22,12 @@ def _input_de_analysis(wildcards):
 
 rule de_analysis:
     input:
-        ddsCollapsedRds = 'results/downstream_analysis/differential_expr/dds_collapsed.Rds',
+        ddsRds = 'results/downstream_analysis/differential_expr/dds.Rds',
         ensembl_geneset = _input_de_analysis
     output:
+        degs_dir =  directory('results/downstream_analysis/differential_expr/DEGs'),
         degs_summaryTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_summary.tsv',
-        degs_dir =  directory('results/downstream_analysis/differential_expr/DEGs')
+        degs_freqTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_frequency.tsv'
     log:
         'logs/deseq2/de_analysis.log'
     params:

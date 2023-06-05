@@ -16,11 +16,14 @@ ensembl_geneset = snakemake@input[["ensembl_geneset"]]
 
 contrastRds = snakemake@output[["contrastRds"]]
 degs_dir = snakemake@output[["degs_dir"]]
-degs_sumTSV <- snakemake@output[["degs_summaryTSV"]]
+degs_sumTSV = snakemake@output[["degs_summaryTSV"]]
+degs_freqTSV = snakemake@output[["degs_freqTSV"]]
 
 fdr_th = as.numeric(snakemake@params[["fdr_th"]])
 log2fc_th = as.numeric(snakemake@params[["log2fc_th"]])
 padj_th = as.numeric(snakemake@params[["padj_th"]])
+
+de_genes <- c()
 
 cat("Reading input data...", sep="\n")
 dds <- readRDS(ddsRds)
@@ -32,9 +35,8 @@ contrast <- resultsNames(dds)[2:length(resultsNames(dds))]
 cat("\n")
 
 cat("Getting DESeq2 results for different contrasts...\n", sep="\n")
-cat("\n")
 cat(paste("FDR used:", fdr_th), sep="\n")
-con_list <- c()
+
 for (con in ncol(contrasts)){
         cat(paste("Contrast:\t", contrasts[1,n], "vs." contrasts[2,n]), sep="\n")
         res <- results(dds, contrast=contrasts[,n], alpha=fdr_th)
@@ -62,10 +64,20 @@ for (con in ncol(contrasts)){
         write.table(degsFilter, file=paste(degs_dir, "/", con_handle, "_DEGs_only.tsv", sep=""), sep="\t", quote=FALSE, row.names=FALSE)
 
         stopifnot(nrow(degsAll) > 0 & nrow(degsFilter) > 0)
-        con_list <- c(con_list, con_handle)
+
+        de_genes <- c(de_genes, degsFilter$ensembl_gene_id)
+
         cat("\n")
 }
 
+cat("Identifying most frecuent DEGs...\n", sep="\n")
+de_genes <- as.data.frame(table(de_genes))
+names(de_genes) <- c("ensembl_gene_id", "Freq")
+de_genes <- inner_join(ensembl_geneset[,1:2], de_genes, by="ensembl_gene_id")
+de_genes <- de_genes[order(de_genes$Freq, decreasing = TRUE),]
+
+write.table(de_genes, file=degs_freqTSV, sep="\t", quote=FALSE, row.names=FALSE)
+cat("\n")
 
 cat("Counting total DEGs for all contrasts...\n", sep="\n")
 file.create(degs_sumTSV)
@@ -83,6 +95,7 @@ degs_sum$Contrast <- sub("_DEGs_only.tsv", "", basename(degs_sum$DEGs_only))
 
 write.table(degs_sum, file=degs_sumTSV, sep="\t", quote=FALSE, row.names=FALSE)
 cat("\n")
+
 
 cat("DONE!", sep="\n")
 cat(paste("Output:", resRds, degs_dir, degs_sumTSV, sep="\n\t"), sep="\n")
