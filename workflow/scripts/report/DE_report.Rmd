@@ -59,7 +59,8 @@ padj_th_deseq <- params$padj_th_deseq
 padj_log10_th <- -log10(padj_th_deseq)
 # clusterProfiler
 padj_th_cluster <- params$padj_th_cluster
-qval_th <- params$qval_th_cluster
+min_gss <- params$min_gss
+max_gss <- params$max_gss
 
 # Colors
 blue_col <- brewer.pal(9, "Blues")
@@ -412,75 +413,92 @@ pdf(file=file.path(fig_dir, "expression_heatmap.pdf"), width=8, height=6)
 ```
 
 
-# GO enrichment analysis {.tabset .tabset-fade}
+# Gene set enrichment analysis (GSEA) {.tabset .tabset-fade}
 
 
 ```{r go, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE, results="asis"}
 for(i in 1:nrow(degs_sum)){
 
-  cat("##", degs_sum$Contrast[i], "<br>", "\n")
+    cat("##", degs_sum$Contrast[i], "<br>", "\n")
   
-  degsFilter <- read.table(file=degs_sum$DEGs_only[i], header=TRUE, sep="\t")
+    degsFilter <- read.table(file=degs_sum$DEGs_only[i], header=TRUE, sep="\t")
 
-  geneList <- degsFilter$log2FoldChange
-  
-  names(geneList) <- degsFilter$ensembl_gene_id
-  geneList <- sort(geneList, decreasing = TRUE)
-  
-  geneList <- geneList[order(abs(geneList), decreasing = TRUE)]
-  
-  ego_mol <- enrichGO(gene = names(geneList),
-                OrgDb = org.Ce.eg.db,
-                keyType = "ENSEMBL",
-                ont = "MF",
-                pAdjustMethod = "BH",
-                pvalueCutoff  = padj_th_cluster,
-                qvalueCutoff  = qval_th)
-  
-  ego_biop <- enrichGO(gene = names(geneList),
-                OrgDb = org.Ce.eg.db,
-                keyType = "ENSEMBL",
-                ont = "BP",
-                pAdjustMethod = "BH",
-                pvalueCutoff  = padj_th_cluster,
-                qvalueCutoff  = qval_th)
-  
-  if (nrow(ego_mol) > 0){
-    p_goeMol <- dotplot(ego_mol, showCategory=10) +
-                  labs(title = paste("Molecular function GOE for", degs_sum$Contrast[i])) +
-                  theme(axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10), 
-                        legend.text = element_text(size=7), legend.title = element_text(size=8),legend.key.size = unit(0.5, "cm")) + 
-                    xlim(c(0,0.125)) 
+    geneList <- degsFilter$log2FoldChange 
+    names(geneList) <- degsFilter$ensembl_gene_id
+    geneList <- sort(geneList, decreasing = TRUE)
 
-    p_goeBiop <- dotplot(ego_biop, showCategory=10) +
-                  labs(title = paste("Biological process GOE for", degs_sum$Contrast[i])) +
-                  theme(axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10), 
-                        legend.text = element_text(size=7), legend.title = element_text(size=8),legend.key.size = unit(0.5, "cm")) + 
-                    xlim(c(0,0.125)) 
+    # Molecular function
+    gse_mol <- gseGO(geneList=geneList, 
+             ont ="MF", 
+             keyType = "ENSEMBL",
+             minGSSize = min_gss, 
+             maxGSSize = max_gss, 
+             pvalueCutoff = padj_th_cluster, 
+             verbose = TRUE, 
+             OrgDb = org.Mm.eg.db, 
+             pAdjustMethod = "BH")
 
-    p_goeHist <- mutate(ego_mol, qscore = -log(p.adjust, base=10)) %>% 
+  
+    if (nrow(gse_mol) > 0){
+
+        p_gseMol <- dotplot(gse_mol, showCategory=5, split=".sign", color = "p.adjust", label_format=25,
+                    title=paste("Molecular function GSE for", degs_cts$Contrast[i])) +
+                    theme(axis.text.x=element_text(size=7),axis.text.y=element_text(size=7), 
+                        legend.text = element_text(size=7), 
+                        legend.title = element_text(size=8),
+                        legend.key.size = unit(0.5, 'cm')) + 
+                    scale_color_gradient(low = blue_col[2], high = blue_col[7]) +
+                    facet_grid(.~.sign)
+
+        p_gseHist <- mutate(gse_mol, qscore = -log(p.adjust, base=10)) %>% 
                     barplot(x="qscore")
 
-    print(p_goeMol)
-    pdf(file=sub("_DEGs_only.tsv", "_GOE_molFunct.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
-       print(p_goeMol)
-      invisible(dev.off())
+        print(pgrid_goeMol)
+        pdf(file=sub("_DEGs_only.tsv", "_GOE_molFunct.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
+            print(pgrid_goeMol)
+        invisible(dev.off())
 
-    print(p_goeBiop)
-    pdf(file=sub("_DEGs_only.tsv", "_GOE_bioProcess.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
-       print(p_goeBiop)
-      invisible(dev.off())
+        print(p_goeHist)
+        pdf(file=sub("_DEGs_only.tsv", "_GOE_hist.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
+            print(p_goeHist)
+        invisible(dev.off())
 
-    print(p_goeHist)
-    pdf(file=sub("_DEGs_only.tsv", "_GOE_hist.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
-       print(p_goeHist)
-      invisible(dev.off())
+    }else{
+        cat("No enriched molecular function terms found for this contrast.")
+    }
 
-  }else{
-    cat("No enriched terms found for this contrast.")
-  }
+    # Biological process
+    gse_biop <- gseGO(geneList=geneList, 
+             ont ="BP", 
+             keyType = "ENSEMBL",
+             minGSSize = min_gss, 
+             maxGSSize = max_gss, 
+             pvalueCutoff = padj_th_cluster, 
+             verbose = TRUE, 
+             OrgDb = org.Mm.eg.db, 
+             pAdjustMethod = "BH")
 
-  cat("\n", "<br>", "\n\n")
+    if (nrow(gse_biop) > 0){
+
+        p_gseBiop <- dotplot(gse_biop, showCategory=5, split=".sign", color = "p.adjust", label_format=25,
+                    title=paste("Biological process GSE for", degs_cts$Contrast[i])) +
+                    theme(axis.text.x=element_text(size=7),axis.text.y=element_text(size=7), 
+                        legend.text = element_text(size=7), 
+                        legend.title = element_text(size=8),
+                        legend.key.size = unit(0.5, 'cm')) + 
+                    scale_color_gradient(low = blue_col[2], high = blue_col[7]) +
+                    facet_grid(.~.sign)
+
+        print(pgrid_goeBiop)
+        pdf(file=sub("_DEGs_only.tsv", "_GOE_bioProcess.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
+            print(pgrid_goeBiop)
+        invisible(dev.off())
+
+    }else{
+        cat("No enriched biological process terms found for this contrast.")
+    }
+
+    cat("\n", "<br>", "\n\n")
 }
 
 ```
@@ -503,9 +521,10 @@ writeLines(c(paste("## Date:\t", format(Sys.time(), '%d %B, %Y')),
             "## LFC shrinkage estimator used:\t ashr",
             "## NO batch correction or removal was performed for this analysis",
             paste("\n\n## Parameters used for GO enrichment analysis with clusterProfiler"),
+            paste("# Min. gene set size:\t", min_gss),
+            paste("# Max. gene set size:\t", max_gss),
             paste("# Padj-value cut-off:\t", padj_th_cluster),
-            paste("# Q-value cut-off:\t", qval_th),
-            "## padj-value transformation method:\t BH",
+            "## Padj-value transformation method:\t BH",
             "\nThe analysis was performed by Paulina Rosales-Becerra (paulina.rosales@helmholtz-munich.de)."),
             log)
 close(log)

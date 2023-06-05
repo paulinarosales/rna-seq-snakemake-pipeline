@@ -20,7 +20,8 @@ rule de_rmarkdown:
         log2fc_th = config['DESEQ2']['LOG2FC_THRESHOLD'],
         padj_th_deseq = config['DESEQ2']['PADJ_THRESHOLD'],
         padj_th_cluster = config['CLUSTER_PROF']['PADJ_THRESHOLD'],
-        qval_th = config['CLUSTER_PROF']['QVAL_THRESHOLD']
+        min_gss = config['CLUSTER_PROF']['MIN_GENESET_SIZE'],
+        max_gss = config['CLUSTER_PROF']['MAX_GENESET_SIZE']
     log:
         'logs/summary_log.log'
     conda:
@@ -34,6 +35,7 @@ rule de_rmarkdown:
         ensembl_geneset='../../../{input.ensembl_geneset}', ddsRds='../../../{input.ddsRds}', \
         degs_summaryTSV='../../../{input.degs_summaryTSV}', tcountsRData='../../../{input.tcountsRData}', \
         fdr_th='{params.fdr_th}', log2fc_th='{params.log2fc_th}', padj_th_deseq='{params.padj_th_deseq}, \
-        padj_th_cluster='{params.padj_th_cluster}', qval_th='{params.qval_th}', log_file=../../../{log}))\"
+        padj_th_cluster='{params.padj_th_cluster}', min_gss='{params.min_gss}', max_gss='{params.max_gss}' \
+        log_file='../../../{log}'))\"
         """
     

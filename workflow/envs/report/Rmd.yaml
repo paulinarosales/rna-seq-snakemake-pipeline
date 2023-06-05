@@ -17,6 +17,5 @@ dependencies:
   - r-parameters =0.21.0
   - r-broom =1.0.4
   - r-knitr =1.42
-  # - bioconductor-deseq2 =1.34.0
+  - bioconductor-deseq2 =1.34.0
   - bioconductor-clusterProfiler =4.6.2
-  # - bioconductor-DOSE =3.24.2
