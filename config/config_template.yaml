@@ -24,10 +24,8 @@ SUBSET_VALUE: ''
 # ----------------------- Params for raw processing ------------------------ #
 
 TRIM_GALORE:
-    HISEQ: '--quality 20'
-    NOVASEQ: '--2colour 20'
-    NEXTSEQ: '--2colour 20'
-#    lenght: 20
+    QUALITY: 20
+    EXTRA: ''
 
 HISAT2:
     KM: 5
