@@ -14,15 +14,14 @@ TEMP_DIR: 'temp_data'
 REPORT_DIR: 'reports'
 
 
-# --------------------------- Handles (?) ---------------------------- #
+# ---------------------------- Subset handles  ----------------------------- #
 
 
 SUBSET_COLUMN: ''
 SUBSET_VALUE: ''
 
-replicates: 'no'
 
-# --------------------------- Params for raw processing ---------------------------- #
+# ----------------------- Params for raw processing ------------------------ #
 
 TRIM_GALORE:
     HISEQ: '--quality 20'
@@ -40,12 +39,18 @@ UNALIGNED_READS:
     HEAD_N: 10
     FRACTION: 0.1
 
-# --------------------------- Params for downstream analysis ---------------------------- #
+# -------------------- Params for downstream analysis ---------------------- #
 
 ENSEMBL_VERSION: 108
 
 LOW_READS_THRESHOLD: 10
 
 DESEQ2:
-    PADJ_THRESHOLD: 1
+    FDR_THRESHOLD: 0.1 # (default 0.1)
+    LOG2FC_THRESHOLD: 1
     PADJ_THRESHOLD: 0.05
+
+CLUSTER_PROF:
+    PADJ_THRESHOLD: 0.05
+    MIN_GENESET_SIZE: 3
+    MAX_GENESET_SIZE: 800

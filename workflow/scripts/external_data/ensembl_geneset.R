@@ -25,6 +25,7 @@ cat("Filtering non-standard chromosomes and lncRNA genes out...", sep="\n")
 ensembl <- ensembl[grep("CHR|GL|KI", ensembl$chromosome_name, invert=T),]
 ensembl <- ensembl[ensembl$gene_biotype != "lncRNA",]
 ensembl <- ensembl[ensembl[[gene_symbol]] != "",]
+names(ensembl[[gene_symbol]]) <- "gene_symbol"
 cat("\n")
 
 cat("Saving output data...", sep="\n")

@@ -1,0 +1,538 @@
+---
+VignetteBuilder: knitr
+Suggests: BiocStyle, knitr, rmarkdown
+title: "RNA-Seq data analysis"
+author: "Paulina Rosales-Becerra"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load libraries
+# library(DESeq2)
+# library(DOSE)
+library(DT)
+library(tidyverse)
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
+library(pheatmap)
+library(tibble)
+library(RColorBrewer)
+library(ggrepel)
+library(ggvenn)
+library(parameters)
+library(broom)
+library(knitr)
+library(clusterProfiler)
+```
+
+
+```{r read, include = FALSE, warning = FALSE}
+
+sample_manifest <- read.table(params$sample_manifestTSV, header=TRUE, sep="\t")
+ensembl_geneset <- read.table(params$ensembl_geneset, header=TRUE, sep="\t")
+dds <- readRDS(params$ddsRds)
+degs_sum <- read.table(params$degs_summaryTSV, header=TRUE, sep="\t")
+de_genes <- read.table(params$degs_freqTSV, header=TRUE, sep="\t")
+
+load(params$tcountsRData) # ntd, vsd and rld counts transformation
+
+fig_dir <- file.path(params$fig_dir)
+log_file <- params$log_file
+
+top_sigDE <- c()
+
+# Thresholds
+# DESeq2
+fdr_th <- params$fdr_th
+log2fc_th <- params$log2fc_th
+padj_th_deseq <- params$padj_th_deseq
+padj_log10_th <- -log10(padj_th_deseq)
+# clusterProfiler
+padj_th_cluster <- params$padj_th_cluster
+min_gss <- params$min_gss
+max_gss <- params$max_gss
+
+# Colors
+blue_col <- brewer.pal(9, "Blues")
+red_col <- brewer.pal(9, "Reds")
+paired_col <- brewer.pal(length(unique(vsd$Treatment)), "Paired")
+
+pca_col <- scale_colour_manual(name = "Treatment", values=paired_col) # PCA
+
+ann_col <- list(Treatment = c(paired_col)) # pheatmap
+ann_col <- paired_col
+names(ann_col) <- unique(vsd$Treatment)
+ann_col <- list(Treatment=ann_col)
+
+```
+
+
+
+# Sample information
+
+The samples used for the analysis are:
+
+
+```{r samples, echo=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+
+samples <- as.data.frame(table(sample_manifest$Treatment))
+names(samples) <- c("Treatment", "No. of samples")
+datatable(samples, options = list(dom = "Bfrti", autoWidth = FALSE, scrollX = TRUE, pageLength = 10), 
+          caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 1: ", htmltools::em("Sample information.")))
+
+```
+
+# Gene counts
+
+## Normalization
+
+`DESeq2` used `mean of ratios` method to normalize read counts per gene for comparable analysis. 
+
+This is how normlaized counts matrix look like:
+
+
+```{r norm, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+norm_cts <-  dds %>% counts(normalized=TRUE) 
+norm_cts <- as.data.frame(norm_cts) %>% rownames_to_column("ensembl_gene_id_version")
+norm_cts <- inner_join(ensembl_geneset[,1:2], norm_cts, by="ensembl_gene_id_version")
+norm_cts <- subset(norm_cts, select=-ensembl_gene_id_version)
+
+
+datatable(norm_cts[1:1000,], extensions = c("Buttons"), options = list(dom = "Bfrtip", buttons = c("csv", "excel"), 
+          autoWidth = TRUE, scrollX = TRUE), caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 2: ", htmltools::em("Normalized counts matrix from DESeq2. Only 1000 results are shown.")))
+
+```
+
+
+## Transformation
+
+For normalized gene counts' transformation 3 different methods were tested:
+
+- `log2(x + 1)`: Shifted logarithm Transformation
+
+- `vsd`: Variance Stabilizing Transformation 
+
+- `rld`: Regularized-logarithm Transformation
+
+```{r plot_countst, fig.cap = "Normalized read counts transformations. Scatterplots using the shifted log (left), using the VST (middle), and using the rlog (right).", echo = FALSE, message = FALSE, warning = FALSE}
+
+df <- bind_rows(
+  as_tibble(assay(ntd)[, 1:2]+1) %>% mutate(transformation = "log2"),
+  as_tibble(assay(vsd)[, 1:2]) %>% mutate(transformation = "vst"),
+  as_tibble(assay(rld)[, 1:2]) %>% mutate(transformation = "rlog"))
+  
+colnames(df)[1:2] <- c("x", "y")  
+lvls <- c("log2", "vst", "rlog")
+df$transformation <- factor(df$transformation, levels=lvls)
+
+ggplot(df, aes(x = x, y = y)) + 
+        geom_hex(bins = 80) +
+        coord_fixed() +
+        facet_grid( . ~ transformation) +
+        labs(x="Sample 1", y="Sample 2")
+
+```
+
+Based on this, we decided to use counts transformed with VST for further further analusis and visualization. 
+
+This is how the transformed counts  looks like:
+
+```{r tcounts, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+tcounts <- as.data.frame(assay(vsd)) %>% rownames_to_column("ensembl_gene_id_version")
+tcounts <- inner_join(ensembl_geneset[,1:2], tcounts, by="ensembl_gene_id_version")   # get hgnc_symbols for ensembl gene IDs
+tcounts <- subset(tcounts, select=-ensembl_gene_id_version)
+
+datatable(tcounts[1:10000,], extensions = c("Buttons"), options = list(dom = "Bfrtip", buttons = c("csv", "excel"), 
+          autoWidth = TRUE, scrollX = TRUE), caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 3: ", htmltools::em("VST transformed counts matrix. Only 1000 results are shown.")))
+```
+
+
+# Sample distances
+
+
+```{r sample_dist, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+sampleDists <- dist(t(assay(vsd)))
+
+
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- vsd$Treatment
+
+dist_col <- colorRampPalette(rev(brewer.pal(9, "Blues"))) (nrow(sampleDistMatrix)**2)
+
+p_dist <-pheatmap(sampleDistMatrix,
+          clustering_distance_rows=sampleDists,
+          clustering_distance_cols=sampleDists,
+          col=dist_col, show_colnames = FALSE)
+
+pdf(file=file.path(fig_dir, "sample_distances.pdf"), width=8, height=6)
+    print(p_dist)     
+invisible(dev.off()) 
+
+```
+
+
+
+# PCA
+
+
+```{r pca, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+d_pca <- plotPCA(vsd, intgroup=c("Treatment"), returnData=TRUE)
+percentVar <- round(100 * attr(d_pca, "percentVar"))
+
+p_pca <- ggplot(d_pca, aes(PC1, PC2, color=Treatment)) +
+          geom_point(size=3) + pca_col +
+          geom_vline(xintercept=0, color="black", linetype=2, alpha=0.3) +
+          geom_hline(yintercept = 0, color="black", linetype=2, alpha=0.3)+
+          xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+          ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+          coord_fixed() +
+          theme_linedraw()
+
+print(p_pca)
+
+pdf(file=file.path(results_dir, "PCA.pdf"), width=8, height=6)
+    print(p_pca)     
+invisible(dev.off()) 
+```
+
+
+# Differential expression analysis
+
+
+```{r degstab, echo=FALSE, warning=FALSE}
+
+cat(paste("**Reference level:**", levels(dds$Treatment)[1]))
+
+datatable(degs_sum[, c("Contrast", "Total_DEGs")], extensions = c("Buttons"), rownames=FALSE,  options = list(dom = "Bfrti", buttons = c("csv", "excel"), 
+           autoWidth = FALSE, scrollX = TRUE), caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+           "Table 4: ", htmltools::em("Total differential expressed genes (DEGs) per contrast.")))
+
+```
+
+
+## DEGs tables {.tabset .tabset-fade}
+
+Differential expressed genes (DEGs) from different contrasts.
+
+```{r deg_tab, echo=FALSE, warning=FALSE, results="asis"}
+
+for(i in 1:nrow(degs_sum)){
+  cat("###", degs_sum$Contrast[i], "<br>", "\n")
+  degs <- read.table(degs_sum$DEGs_only[i], header=TRUE, sep="\t")
+  print(htmltools::tagList(datatable(degs, options = list(dom = "Bfrtip", autoWidth = TRUE, scrollX = TRUE))))
+  
+  top_sigDE <- degs %>% arrange(padj)  %>% pull(ensembl_gene_id) %>% head(n=20) %>% c(top_sigDE)
+  cat("\n", "<br>", "\n\n")
+}
+```
+
+
+
+## MA plots {.tabset .tabset-fade}
+
+
+```{r ma_plot, echo=FALSE, warning=FALSE, message = FALSE, results="asis"}
+
+cat(paste("Genes with `padj >= ", padj_th_deseq, "` or `|log2FC| < ", log2fc_th, "` are colored in gray.\n\n", sep=""))
+
+for(i in 1:nrow(degs_sum)){
+
+  cat("###", degs_sum$Contrast[i], "<br>", "\n")
+  degsLFC <- read.table(file=degs_sum$degsLFC_file[i], header=TRUE, sep="\t")
+
+  basemean_lim <- ceiling(max(degsLFC$baseMean))
+  log_lim <- ceiling(max(abs(degsLFC$log2FoldChange)))
+  
+  degs_up <- filter(degsLFC, log2FoldChange > log2fc_th,  padj < padj_th_deseq)
+  degs_up <- degs_up$ensembl_gene_id
+  degs_down <- filter(degsLFC, log2FoldChange < -log2fc_th,  padj < padj_th_deseq)
+  degs_down <- degs_down$ensembl_gene_id
+  
+  top_up <- degs_up[1:5]
+  top_down <- degs_down[(length(degs_down)-4):length(degs_down)]
+
+  p_ma <- ggplot(data=degsLFC, aes(x=baseMean, y=log2FoldChange)) +
+            geom_point(color=dplyr::case_when(degsLFC$ensembl_gene_id %in% degs_up ~ red_col[2], 
+                                            degsLFC$ensembl_gene_id %in% degs_down  ~ blue_col[2], 
+                                            !(degsLFC$ensembl_gene_id %in% c(degs_up, degs_down)) ~ "gray"), 
+                    alpha=dplyr::case_when(degsLFC$ensembl_gene_id %in% c(degs_up, degs_down)  ~ 0.8, 
+                                            !(degsLFC$ensembl_gene_id %in% c(degs_up, degs_down)) ~ 0.4),
+                    size=1) +
+            geom_text_repel(aes(label=dplyr::case_when(degsLFC$ensembl_gene_id %in% c(top_up, top_down) ~ degsLFC$external_gene_name)), size=3) +
+            geom_hline(yintercept = c(-log2fc_th, log2fc_th), color="black", linetype=2) +
+            labs(title=sub("_vs_", " vs ", degs_sum$Contrast[i]), x="Mean normalized counts", y="log2FoldChange")+
+            geom_text(x=Inf, y=Inf, label= paste("UP =", length(degs_up)), hjust = 1.2, vjust = 2, color = red_col[2]) +
+            geom_text(x=Inf, y=-Inf, label= paste("DOWN =", length(degs_down)), hjust = 1.2, vjust = -1, color = blue_col[2]) +
+            xlim(c(1,basemean_lim)) +
+            ylim(c(-log_lim,log_lim)) +
+            theme_classic() +
+            scale_x_log10() + 
+            theme(axis.title = element_text(face="bold", size=12), axis.text = element_text(face="bold"), plot.title = element_text(size = 12, face ="bold", hjust = 0.5))
+
+  print(p_ma)
+  pdf(file=file.path(fig_dir, "MA_plots", paste(degs_sum$Contrast[i], ".pdf", sep="")), width=8, height=6)
+      print(p_ma)
+    invisible(dev.off())
+    
+  cat("\n", "<br>", "\n\n")
+}
+
+```
+
+
+## Volcano plots {.tabset .tabset-fade}
+
+```{r volcano, echo=FALSE, warning=FALSE, results="asis"}
+
+for(i in 1:nrow(degs_sum)){
+
+  cat("###", degs_sum$Contrast[i], "<br>", "\n")
+  degsAll <- read.table(file=degs_sum$DEGs_all[i], header=TRUE, sep="\t")
+  degsFilter <- read.table(file=degs_sum$DEGs_only[i], header=TRUE, sep="\t")
+  
+  
+  degs_up <- filter(degsFilter, log2FoldChange > 0)
+  degs_up <- degs_up$ensembl_gene_id
+  degs_down <- filter(degsFilter, log2FoldChange < 0)
+  degs_down <- degs_down$ensembl_gene_id
+
+  log_lim <- ceiling(max(abs(degsFilter$log2FoldChange)))
+
+  top_up <- degs_up[1:5]
+  top_down <- degs_down[(length(degs_down)-4):length(degs_down)]
+  
+  # VOLCANO PLOT
+  p_volcano <- ggplot(data=degsAll, aes(x=log2FoldChange, y=padj_log10)) +
+            geom_point(color=dplyr::case_when(degsAll$ensembl_gene_id %in% degs_up ~ red_col[2], 
+                                            degsAll$ensembl_gene_id %in% degs_down  ~ blue_col[2], 
+                                            !(degsAll$ensembl_gene_id %in% c(degs_up, degs_down)) ~ "gray"), 
+                    size=dplyr::case_when(degsAll$ensembl_gene_id %in% degsFilter$ensembl_gene_id ~ 0.8,
+                                            !(degsAll$ensembl_gene_id %in% degsFilter$ensembl_gene_id)  ~ 0.6),
+                    alpha=dplyr::case_when(degsAll$ensembl_gene_id %in% degsFilter$ensembl_gene_id ~ 0.8,
+                                            !(degsAll$ensembl_gene_id %in% degsFilter$ensembl_gene_id)  ~ 0.6)) +
+            geom_text_repel(aes(label=dplyr::case_when(degsAll$ensembl_gene_id %in% c(top_up, top_down) ~ degsAll$external_gene_name)), size=3) +
+            geom_vline(xintercept=c(-log2fc_th, log2fc_th), color="black", linetype=2) +
+            geom_hline(yintercept = padj_log10_th, color="black", linetype=2) +
+            labs(title=sub("_vs_", " vs ", degs_sum$Contrast[i]), x="log2FoldChange", y="-log10(padj)")+
+            geom_text(x=Inf, y=Inf, label= paste("UP =", length(degs_up)), hjust = 1.2, vjust = 2, color = red_col[2]) +
+            geom_text(x=-Inf, y=Inf, label= paste("DOWN =", length(degs_down)), hjust = -0.2, vjust = 2, color = blue_col[2]) +
+            xlim(c(-log_lim,log_lim))+
+            theme_classic() +
+            theme(axis.title = element_text(face="bold", size=12), axis.text = element_text(face="bold"), plot.title = element_text(size = 12, face ="bold", hjust = 0.5))
+
+  print(p_volcano)
+  pdf(file=file.path(fig_dir, "volcano", paste(degs_sum$Contrast[i], ".pdf", sep="")), width=8, height=6)
+      print(p_volcano)
+    invisible(dev.off())
+    
+  cat("\n", "<br>", "\n\n")
+}
+
+```
+
+
+
+
+## Top DEGs
+
+According to padj-values.
+
+```{r top_de, echo=FALSE, warning=FALSE}
+
+top20_sigDE <- as.data.frame(table(top_sigDE))
+names(top20_sigDE) <- c("ensembl_gene_id", "Freq")
+top20_sigDE <- inner_join(de_genes[,c("ensembl_gene_id", "external_gene_name")], top20_sigDE, by="ensembl_gene_id")
+top20_sigDE <- top20_sigDE[order(top20_sigDE$Freq, decreasing = TRUE),]
+top20_sigDE <-	head(top20_sigDE, n=20) 
+top20_sigDE$Freq <- NULL
+
+norm_cts <- norm_cts %>% as_tibble()
+
+
+coldata <- as.data.frame(colData(dds)) 
+coldata <- coldata %>% rownames_to_column(var="Sample_ID") %>% as_tibble()
+
+top20_sigDE_norm <- norm_cts %>% filter(ensembl_gene_id %in% top20_sigDE$ensembl_gene_id)
+gathered_top20_sigOE <- top20_sigDE_norm %>% gather(colnames(top20_sigDE_norm)[2:ncol(top20_sigDE_norm)], key = "Sample_ID", value = "normalized_counts")
+  
+gathered_top20_sigOE <- inner_join(coldata, gathered_top20_sigOE, by= "Sample_ID")
+gathered_top20_sigOE <- inner_join(gathered_top20_sigOE, top20_sigDE, by= "ensembl_gene_id")
+
+p_counts <- ggplot(gathered_top20_sigOE) +
+        geom_point(aes(x = external_gene_name, y = normalized_counts, color = Treatment)) +
+        scale_y_log10() + pca_col +
+        xlab("Genes") +
+        ylab("log10 Normalized Counts") +
+        ggtitle("Top 20 Significant DE Genes") +
+        theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	theme(plot.title = element_text(hjust = 0.5))
+
+print(p_counts)
+
+pdf(file=file.path(fig_dir, "topSig_Counts.pdf"), width=8, height=6)
+    print(p_counts)     
+invisible(dev.off()) 
+
+```
+
+
+
+# Expression heatmap
+
+
+```{r expr_heat, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+heatmap_d <- data.frame(Treatment=colData(dds)$Treatment, row.names = rownames(colData(dds)))
+p_heatmap <- pheatmap(assay(vsd)[de_genes$ensembl_gene_id[1:150],], cluster_rows=TRUE, show_rownames=FALSE,
+         cluster_cols=TRUE, annotation_col = heatmap_d, annotation_colors = ann_col)
+
+print(p_heatmap)
+pdf(file=file.path(fig_dir, "expression_heatmap.pdf"), width=8, height=6)
+    print(p_heatmap)     
+  invisible(dev.off()) 
+
+
+```
+
+
+# Gene set enrichment analysis (GSEA) {.tabset .tabset-fade}
+
+
+```{r go, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE, results="asis"}
+for(i in 1:nrow(degs_sum)){
+
+    cat("##", degs_sum$Contrast[i], "<br>", "\n")
+  
+    degsFilter <- read.table(file=degs_sum$DEGs_only[i], header=TRUE, sep="\t")
+
+    geneList <- degsFilter$log2FoldChange 
+    names(geneList) <- degsFilter$ensembl_gene_id
+    geneList <- sort(geneList, decreasing = TRUE)
+
+    # Molecular function
+    gse_mol <- gseGO(geneList=geneList, 
+             ont ="MF", 
+             keyType = "ENSEMBL",
+             minGSSize = min_gss, 
+             maxGSSize = max_gss, 
+             pvalueCutoff = padj_th_cluster, 
+             verbose = TRUE, 
+             OrgDb = org.Mm.eg.db, 
+             pAdjustMethod = "BH")
+
+  
+    if (nrow(gse_mol) > 0){
+
+        p_gseMol <- dotplot(gse_mol, showCategory=5, split=".sign", color = "p.adjust", label_format=25,
+                    title=paste("Molecular function GSE for", degs_cts$Contrast[i])) +
+                    theme(axis.text.x=element_text(size=7),axis.text.y=element_text(size=7), 
+                        legend.text = element_text(size=7), 
+                        legend.title = element_text(size=8),
+                        legend.key.size = unit(0.5, 'cm')) + 
+                    scale_color_gradient(low = blue_col[2], high = blue_col[7]) +
+                    facet_grid(.~.sign)
+
+        p_gseHist <- mutate(gse_mol, qscore = -log(p.adjust, base=10)) %>% 
+                    barplot(x="qscore")
+
+        print(pgrid_goeMol)
+        pdf(file=sub("_DEGs_only.tsv", "_GOE_molFunct.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
+            print(pgrid_goeMol)
+        invisible(dev.off())
+
+        print(p_goeHist)
+        pdf(file=sub("_DEGs_only.tsv", "_GOE_hist.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
+            print(p_goeHist)
+        invisible(dev.off())
+
+    }else{
+        cat("No enriched molecular function terms found for this contrast.")
+    }
+
+    # Biological process
+    gse_biop <- gseGO(geneList=geneList, 
+             ont ="BP", 
+             keyType = "ENSEMBL",
+             minGSSize = min_gss, 
+             maxGSSize = max_gss, 
+             pvalueCutoff = padj_th_cluster, 
+             verbose = TRUE, 
+             OrgDb = org.Mm.eg.db, 
+             pAdjustMethod = "BH")
+
+    if (nrow(gse_biop) > 0){
+
+        p_gseBiop <- dotplot(gse_biop, showCategory=5, split=".sign", color = "p.adjust", label_format=25,
+                    title=paste("Biological process GSE for", degs_cts$Contrast[i])) +
+                    theme(axis.text.x=element_text(size=7),axis.text.y=element_text(size=7), 
+                        legend.text = element_text(size=7), 
+                        legend.title = element_text(size=8),
+                        legend.key.size = unit(0.5, 'cm')) + 
+                    scale_color_gradient(low = blue_col[2], high = blue_col[7]) +
+                    facet_grid(.~.sign)
+
+        print(pgrid_goeBiop)
+        pdf(file=sub("_DEGs_only.tsv", "_GOE_bioProcess.pdf", degs_sum$DEGs_only[i]), width=8, height=6)
+            print(pgrid_goeBiop)
+        invisible(dev.off())
+
+    }else{
+        cat("No enriched biological process terms found for this contrast.")
+    }
+
+    cat("\n", "<br>", "\n\n")
+}
+
+```
+
+# Method details
+
+```{r params, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+log <- file(log_file)
+
+writeLines(c(paste("## Date:\t", format(Sys.time(), '%d %B, %Y')),
+            paste("\n## Parameters used for DE analysis with DESeq2"),
+            paste("# Reference condition:\t", levels(dds$Treatment)[1]),
+            paste("# Generated contrasts:\t"),
+            paste("#\t", degs_sum$Contrast, sep="\t"),
+            paste("# FDR cut-off:\t", fdr_th),
+            paste("# Padj-value cut-off:\t", padj_th_deseq),
+            paste("# Log2FC cut-off:\t", log2fc_th),
+            "## Count data transformation used for visualization:\t VST",
+            "## LFC shrinkage estimator used:\t ashr",
+            "## NO batch correction or removal was performed for this analysis",
+            paste("\n\n## Parameters used for GO enrichment analysis with clusterProfiler"),
+            paste("# Min. gene set size:\t", min_gss),
+            paste("# Max. gene set size:\t", max_gss),
+            paste("# Padj-value cut-off:\t", padj_th_cluster),
+            "## Padj-value transformation method:\t BH",
+            "\nThe analysis was performed by Paulina Rosales-Becerra (paulina.rosales@helmholtz-munich.de)."),
+            log)
+close(log)
+
+readLines(log_file) %>% paste0(collapse="\n") %>% cat
+
+```
+
+
+
+

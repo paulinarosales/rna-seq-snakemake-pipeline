@@ -17,7 +17,7 @@ min_version('6.8.0')
 # Load Snakemake config 
 configfile: "config/config_template.yaml"
 
-# --------------------------- Read config file ---------------------------- #
+# ---------------------------- Read config file ----------------------------- #
 
 RESULTS_DIR = Path(config['RESULTS_DIR'])
 FIGURE_DIR = Path(config['FIGURE_DIR'])
@@ -42,7 +42,7 @@ SAMPLES = SAMPLE_MANIFEST.set_index(['Sample_type',
                                      'Bio_rep'])
 
 
-# --------------------------- Dictitonaries ---------------------------- #
+# ------------------------------ Dictitonaries ------------------------------- #
 
 # GENCODE realeases dictionary (realease -> genome name # UCSC genome equivalent)
 GENCODE_VERSIONS = {
@@ -60,6 +60,10 @@ TARGETS = {'raw_seq': [],
             'samtools': [],
             'salmon': [],
             'unaligned_reads': []
+            'tximeta' : []
+            'ensembl' : []
+            'deseq2' : []
+            'rmd' : []
             }
     
 # as array for different genomes?
@@ -72,25 +76,40 @@ for sample_type, treatment, bio_rep in SAMPLES.index:
     # Selects samples with specified value on a given column in the sample manifest (USE CONFIG FILE TO SELECT)
     if SUBSET_COLUMN:
         if SAMPLES.loc[(sample_type, treatment, bio_rep), SUBSET_COLUMN] == config['SUBSET_VALUE']:
+            # --------- Raw procesing
             TARGETS['raw_seq'].append(str(FASTQ_DIR / 'raw'/ f'{identifier}_S{handle}_L002_R2_001.fastq.gz'))
             TARGETS['merged_fq'].append(str(FASTQ_DIR / 'merged'/ f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'))
             TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
             TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
             TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
             TARGETS['salmon'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
+            # --------- Downstream analysis
             TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads_hisat2' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
+            TARGETS['tximeta'].append(str(RESULTS_DIR / 'read_counts' / 'tximeta' / 'GeneSE_counts.tsv'))
+            TARGETS['ensembl'].append(str(EXTERNAL_DATA_DIR / 'genesets' / f'{GENOME}_ensembl_geneset.tsv'))
+            TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'dds.Rds'))
+            TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'DEGs' / 'DEGs_summary.tsv'))
+            # --------- Report
+            TARGETS['rmd'].append(str( REPORT_DIR / 'DE_analysis.html'))
     else:
+        # --------- Raw procesing
         TARGETS['raw_seq'].append(str(FASTQ_DIR / 'raw'/ f'{identifier}_S{handle}_L002_R2_001.fastq.gz'))
         TARGETS['merged_fq'].append(str(FASTQ_DIR / 'merged'/ f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'))
         TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
         TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
         TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
         TARGETS['salmon'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
+        # --------- Downstream analysis
         TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads_hisat2' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
-        # TARGETS['tximeta'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
+        TARGETS['tximeta'].append(str(RESULTS_DIR / 'read_counts' / 'tximeta' / 'GeneSE_counts.tsv'))
+        TARGETS['ensembl'].append(str(EXTERNAL_DATA_DIR / 'genesets' / f'{GENOME}_ensembl_geneset.tsv'))
+        TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'dds.Rds'))
+        TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'DEGs' / 'DEGs_summary.tsv'))
+        # --------- Report
+        TARGETS['rmd'].append(str( REPORT_DIR / 'DE_analysis.html'))
         
 
-# --------------------------- Import rules ---------------------------- #
+# ------------------------------- Import rules -------------------------------- #
 
 # --------- Raw procesing 
 include: 'rules/external_data/merge_lanes.smk'
@@ -99,12 +118,15 @@ include: 'rules/external_data/get_ref_sequences.smk'
 include: 'rules/alignment/hisat2.smk'
 include: 'rules/alignment/samtools.smk'
 include: 'rules/alignment/salmon.smk'
-include: 'rules/quality_control/unaligned_read_blast.smk'
 
 # --------- Downstream analysis
+include: 'rules/quality_control/unaligned_read_blast.smk'
 include: 'rules/read_counts/counts_parsing.smk'
 include: 'rules/external_data/get_ensembl_geneset.smk'
-include: 'rules/downstream_analysis/deseq2.smk'
+include: 'rules/downstream/deseq2.smk'
+
+# --------- Report
+include: 'rules/report/generate_Rmd.smk'
 
 
 rule multiqc_report:
@@ -128,8 +150,6 @@ rule multiqc_report:
 
 rule all:
     input:
-        # TARGETS
-        # TARGETS['raw_seq'],
         expand('resources/external/gencode_{realease}/{genome}_genome.fa.gz', realease=GENCODE_REALEASE, genome=GENOME),
         TARGETS['raw_seq'],
         TARGETS['merged_fq'],
@@ -137,10 +157,11 @@ rule all:
         TARGETS['hisat2'],
         TARGETS['samtools'],
         TARGETS['salmon'],
-        # TARGETS['unaligned_reads'],
-        # 'results/quality_control/unaligned_reads_hisat2/unaligned_sequences.tsv'
         str(REPORT_DIR / 'multiqc'),
-        'results/read_counts/tximeta/GeneSE_counts.tsv',
-        'results/downstream_analysis/differential_expr/DESeqDataSets.RData',
-        'results/downstream_analysis/differential_expr/de_contrast.Rds'
+        TARGETS['unaligned_reads'],
+        TARGETS['tximeta'],
+        TARGETS['ensembl'],
+        TARGETS['deseq2'],
+        TARGETS['rmd']
+
     default_target: True

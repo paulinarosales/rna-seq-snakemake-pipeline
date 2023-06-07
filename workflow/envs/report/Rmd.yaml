@@ -1,0 +1,21 @@
+channels:
+  - conda-forge
+  - defaults
+  - bioconda
+dependencies:
+  - r-base =4.2.1
+  - r-rmarkdown =2.21
+  - r-DT =0.27
+  - r-tidyverse =2.0.0
+  - r-kableExtra =1.3.4
+  - r-dplyr =1.1.2
+  - r-ggplot2 =3.4.2
+  - r-pheatmap =1.0.12
+  - r-tibble =3.2.1
+  - r-ggrepel =0.9.3
+  - r-ggvenn =0.1.10
+  - r-parameters =0.21.0
+  - r-broom =1.0.4
+  - r-knitr =1.42
+  - bioconductor-deseq2 =1.34.0
+  - bioconductor-clusterProfiler =4.6.2
