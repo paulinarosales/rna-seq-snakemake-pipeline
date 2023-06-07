@@ -15,7 +15,7 @@ requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
 min_version('6.8.0')
 
 # Load Snakemake config 
-configfile: "config/config_template.yaml"
+configfile: "config/config.yaml"
 
 # ---------------------------- Read config file ----------------------------- #
 
@@ -35,6 +35,7 @@ SUBSET_COLUMN = config['SUBSET_COLUMN']
 
 # --------------------------- Read sample manifest ---------------------------- #
 SAMPLE_MANIFEST = pd.read_table(Path(config['SAMPLE_MANIFEST']))
+SAMPLE_MANIFEST['Bio_rep'] = SAMPLE_MANIFEST.Bio_rep.astype(str)
 
 # Specify the sample info combinations to use as label per sample
 SAMPLES = SAMPLE_MANIFEST.set_index(['Sample_type',
@@ -55,14 +56,15 @@ GENCODE_VERSIONS = {
 
 # Output files dictionary
 TARGETS = {'raw_seq': [], 
+            'merged_fq': [],
             'trimmed': [],
             'hisat2': [],
             'samtools': [],
             'salmon': [],
-            'unaligned_reads': []
-            'tximeta' : []
-            'ensembl' : []
-            'deseq2' : []
+            'unaligned_reads': [],
+            'tximeta' : [],
+            'ensembl' : [],
+            'deseq2' : [],
             'rmd' : []
             }
     

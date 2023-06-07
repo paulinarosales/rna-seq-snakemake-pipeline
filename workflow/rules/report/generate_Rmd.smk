@@ -8,10 +8,10 @@ rule de_rmarkdown:
         rmd = 'workflow/scripts/report/DE_report.Rmd',
         sample_manifestTSV = 'config/sample_manifest.tsv',
         ensembl_geneset = _input_rmd,
-        ddsRds = 'results/downstream_analysis/differential_expr/dds.Rds',
-        degs_summaryTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_summary.tsv',
-        degs_freqTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_frequency.tsv',
-        tcountsRData = 'results/downstream_analysis/differential_expr/transformed_counts.RData'
+        ddsRds = 'results/downstream/differential_expr/dds.Rds',
+        degs_summaryTSV = 'results/downstream/differential_expr/DEGs/DEGs_summary.tsv',
+        degs_freqTSV = 'results/downstream/differential_expr/DEGs/DEGs_frequency.tsv',
+        tcountsRData = 'results/downstream/differential_expr/transformed_counts.RData'
     output:
         html = 'reports/DE_analysis.html',
         fig_dir = directory(config['FIGURE_DIR'])
@@ -25,7 +25,7 @@ rule de_rmarkdown:
     log:
         'logs/summary.log'
     conda:
-        'envs/Rmd.yaml'
+        '../../envs/report/Rmd.yaml'
     resources:
         mem_mb = 4000
     shell:

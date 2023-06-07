@@ -15,7 +15,7 @@ rule ensembl_geneset:
     params:
        _biomart_handles
     conda:
-        '../../envs/downstream_analysis/differential_expr.yaml'
+        '../../envs/downstream/differential_expr.yaml'
     script:
         '../../scripts/external_data/ensembl_geneset.R'
 

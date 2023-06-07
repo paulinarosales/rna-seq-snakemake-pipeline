@@ -17,6 +17,6 @@ rule salmon_to_tximeta:
     log: 
         'logs/tximeta/salmon_to_tximeta.log'
     conda:
-        '../../envs/downstream_analysis/differential_expr.yaml'
+        '../../envs/downstream/differential_expr.yaml'
     script:
         '../../scripts/read_counts/tximeta_GeneSE_counts.R'
