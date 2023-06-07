@@ -10,11 +10,11 @@ rule de_rmarkdown:
         ensembl_geneset = _input_rmd,
         ddsRds = 'results/downstream_analysis/differential_expr/dds.Rds',
         degs_summaryTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_summary.tsv',
-        degs_freqTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_frequency.tsv'
+        degs_freqTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_frequency.tsv',
         tcountsRData = 'results/downstream_analysis/differential_expr/transformed_counts.RData'
     output:
         html = 'reports/DE_analysis.html',
-        fig_dir = directory('results/figures')
+        fig_dir = directory(config['FIGURE_DIR'])
     params:
         fdr_th = config['DESEQ2']['FDR_THRESHOLD'],
         log2fc_th = config['DESEQ2']['LOG2FC_THRESHOLD'],
@@ -23,7 +23,7 @@ rule de_rmarkdown:
         min_gss = config['CLUSTER_PROF']['MIN_GENESET_SIZE'],
         max_gss = config['CLUSTER_PROF']['MAX_GENESET_SIZE']
     log:
-        'logs/summary_log.log'
+        'logs/summary.log'
     conda:
         'envs/Rmd.yaml'
     resources:

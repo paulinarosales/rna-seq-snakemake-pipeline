@@ -5,14 +5,14 @@ rule deseq_model:
     input:
         gse_countsRds = 'results/read_counts/tximeta/GeneSE_counts.Rds'
     output:
-        ddsRds = 'results/downstream_analysis/differential_expr/dds.Rds',
-        tcountsRData = 'results/downstream_analysis/differential_expr/transformed_counts.RData'
+        ddsRds = 'results/downstream/differential_expr/dds.Rds',
+        tcountsRData = 'results/downstream/differential_expr/transformed_counts.RData'
     log:
         'logs/deseq2/dds_object.log'
     params:
         reads_th = config['LOW_READS_THRESHOLD']
     conda:
-        '../../envs/downstream_analysis/differential_expr.yaml'
+        '../../envs/downstream/differential_expr.yaml'
     script:
         '../../scripts/differential_expr/deseq_model.R'
 
@@ -22,12 +22,12 @@ def _input_de_analysis(wildcards):
 
 rule de_analysis:
     input:
-        ddsRds = 'results/downstream_analysis/differential_expr/dds.Rds',
+        ddsRds = 'results/downstream/differential_expr/dds.Rds',
         ensembl_geneset = _input_de_analysis
     output:
-        degs_dir =  directory('results/downstream_analysis/differential_expr/DEGs'),
-        degs_summaryTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_summary.tsv',
-        degs_freqTSV = 'results/downstream_analysis/differential_expr/DEGs/DEGs_frequency.tsv'
+        degs_dir =  directory('results/downstream/differential_expr/DEGs'),
+        degs_summaryTSV = 'results/downstream/differential_expr/DEGs/DEGs_summary.tsv',
+        degs_freqTSV = 'results/downstream/differential_expr/DEGs/DEGs_frequency.tsv'
     log:
         'logs/deseq2/de_analysis.log'
     params:
@@ -35,6 +35,6 @@ rule de_analysis:
         log2fc_th = config['DESEQ2']['LOG2FC_THRESHOLD'],
         padj_th = config['DESEQ2']['PADJ_THRESHOLD']
     conda:
-        '../../envs/downstream_analysis/differential_expr.yaml'
+        '../../envs/downstream/differential_expr.yaml'
     script:
         '../../scripts/differential_expr/de_analysis.R'

@@ -14,15 +14,14 @@ TEMP_DIR: 'temp_data'
 REPORT_DIR: 'reports'
 
 
-# --------------------------- Handles (?) ---------------------------- #
+# ---------------------------- Subset handles  ----------------------------- #
 
 
 SUBSET_COLUMN: ''
 SUBSET_VALUE: ''
 
-replicates: 'no'
 
-# --------------------------- Params for raw processing ---------------------------- #
+# ----------------------- Params for raw processing ------------------------ #
 
 TRIM_GALORE:
     HISEQ: '--quality 20'
@@ -40,7 +39,7 @@ UNALIGNED_READS:
     HEAD_N: 10
     FRACTION: 0.1
 
-# --------------------------- Params for downstream analysis ---------------------------- #
+# -------------------- Params for downstream analysis ---------------------- #
 
 ENSEMBL_VERSION: 108
 
