@@ -3,15 +3,15 @@ rule salmon_decoy:
     input:
         # genome_fa = rules.get_fasta.output,
         # transcriptome = rules.get_transcriptome.output
-        genome_fa = 'resources/external/gencode_{realease}/{genome}_genome.fa',
-        transcriptome_fa = 'resources/external/gencode_{realease}/{genome}_transcriptome.fa'
+        genome_fa = 'resources/external/gencode_{release}/{genome}_genome.fa',
+        transcriptome_fa = 'resources/external/gencode_{release}/{genome}_transcriptome.fa'
     output:
         # decoys = str(GENOME_INDEX_DIR / 'salmon' / '{genome}_decoys.txt'),
         # gentrome = str(GENOME_INDEX_DIR / 'salmon' / '{genome}_gentrome.fa')
-        decoys = 'resources/external/index/salmon/gencode_{realease}/{genome}_decoys.txt',
-        gentrome = 'resources/external/index/salmon/gencode_{realease}/{genome}_gentrome.fa'
+        decoys = 'resources/external/index/salmon/gencode_{release}/{genome}_decoys.txt',
+        gentrome = 'resources/external/index/salmon/gencode_{release}/{genome}_gentrome.fa'
     log:
-        'logs/salmon/gencode_{realease}_{genome}_decoy.log'
+        'logs/salmon/gencode_{release}_{genome}_decoy.log'
     threads: 4
     shell:
         # Gathering decoy sequences names
@@ -27,15 +27,15 @@ rule salmon_decoy:
 
 rule salmon_index:
     input:
-        decoys = 'resources/external/index/salmon/gencode_{realease}/{genome}_decoys.txt',
-        gentrome = 'resources/external/index/salmon/gencode_{realease}/{genome}_gentrome.fa'
+        decoys = 'resources/external/index/salmon/gencode_{release}/{genome}_decoys.txt',
+        gentrome = 'resources/external/index/salmon/gencode_{release}/{genome}_gentrome.fa'
     output:
         # str(GENOME_INDEX_DIR / salmon / '{genome}_transcript_index' / 'pos.bin')
         # out_dir = str(GENOME_INDEX_DIR / 'salmon' / '{genome}_transcript_index')
-        'resources/external/index/salmon/gencode_{realease}/{genome}_transcript_index/pos.bin',
-        out_dir = directory('resources/external/index/salmon/gencode_{realease}/{genome}_transcript_index')
+        'resources/external/index/salmon/gencode_{release}/{genome}_transcript_index/pos.bin',
+        out_dir = directory('resources/external/index/salmon/gencode_{release}/{genome}_transcript_index')
     log:
-        'logs/salmon/gencode_{realease}_{genome}_transcript_index.log'
+        'logs/salmon/gencode_{release}_{genome}_transcript_index.log'
     threads: 16
     resources:
         mem_mb = 28000
@@ -50,12 +50,12 @@ rule salmon_index:
         """
 
 def _input_for_salmon_quant(wildcards):
-    index = expand('resources/external/index/salmon/gencode_{realease}/{genome}_transcript_index/pos.bin', realease=GENCODE_REALEASE, genome=GENOME)
+    index = expand('resources/external/index/salmon/gencode_{release}/{genome}_transcript_index/pos.bin', release=GENCODE_RELEASE, genome=GENOME)
     fq1 = f'results/fastq/trimmed/{wildcards.sample_type}_{wildcards.treatment}_Bio-rep_{wildcards.bio_rep}/{wildcards.sample_type}_{wildcards.treatment}_Bio-rep_{wildcards.bio_rep}_val_1.fq.gz'
     fq2 =  f'results/fastq/trimmed/{wildcards.sample_type}_{wildcards.treatment}_Bio-rep_{wildcards.bio_rep}/{wildcards.sample_type}_{wildcards.treatment}_Bio-rep_{wildcards.bio_rep}_val_2.fq.gz'
     return {'index': index, 'fq1': fq1, 'fq2': fq2}
 def _param_for_salmon_quant(wildcards):
-    return expand('resources/external/index/salmon/gencode_{realease}/{genome}_transcript_index', realease=GENCODE_REALEASE, genome=GENOME)
+    return expand('resources/external/index/salmon/gencode_{release}/{genome}_transcript_index', release=GENCODE_RELEASE, genome=GENOME)
 
 
 

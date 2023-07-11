@@ -1,12 +1,12 @@
 rule hisat2_build:
     input:
-        'resources/external/gencode_{realease}/{genome}_genome.fa'
+        'resources/external/gencode_{release}/{genome}_genome.fa'
     output:
-        multiext('resources/external/index/hisat2/gencode_{realease}/{genome}', '.1.ht2', '.2.ht2', '.3.ht2', '.4.ht2', '.5.ht2', '.6.ht2', '.7.ht2', '.8.ht2')
+        multiext('resources/external/index/hisat2/gencode_{release}/{genome}', '.1.ht2', '.2.ht2', '.3.ht2', '.4.ht2', '.5.ht2', '.6.ht2', '.7.ht2', '.8.ht2')
     log:
-        'logs/hisat2/gencode_{realease}_{genome}_index.log'
+        'logs/hisat2/gencode_{release}_{genome}_index.log'
     params:
-        basename = directory('resources/external/index/hisat2/gencode_{realease}/{genome}')
+        basename = directory('resources/external/index/hisat2/gencode_{release}/{genome}')
     conda:
         '../../envs/alignment/hisat2.yaml'
     threads: 24
@@ -17,10 +17,10 @@ rule hisat2_build:
 
 # OPTIMIZE
 def _input_for_hisat2_align(wildcards):
-    return expand('resources/external/index/hisat2/gencode_{realease}/{genome}.8.ht2', realease=GENCODE_REALEASE, genome=GENOME)
+    return expand('resources/external/index/hisat2/gencode_{release}/{genome}.8.ht2', release=GENCODE_RELEASE, genome=GENOME)
 
 def _params_for_hisat2_align(wildcards):
-    return expand('resources/external/index/hisat2/gencode_{realease}/{genome}', realease=GENCODE_REALEASE, genome=GENOME)
+    return expand('resources/external/index/hisat2/gencode_{release}/{genome}', release=GENCODE_RELEASE, genome=GENOME)
 
 
 rule hisat2_align:
@@ -41,14 +41,15 @@ rule hisat2_align:
     threads: 24
     resources:
         mem_mb = 16000,
-        time = '1-00:00:00'
+        time = '1-00:00:00',
+        tmpdir = 'tmp/hisat2'
     params:
         index_basename = _params_for_hisat2_align,
-        # index_dir = 'data/genome_index/hisat2/{genome}/{genome}',     # basename for indexes
-        km = config['HISAT2']['KM']
+        km = config['HISAT2']['KM'],
+        extra = config['HISAT2']['EXTRA']
     shell:
         """
-        hisat2 -p {threads} -k {params.km} -x {params.index_basename} \
+        hisat2 -p {threads} -k {params.km} -x {params.index_basename} {params.extra}\
         -1 {input.fq1} -2 {input.fq2} 2> {log} | \
         samtools view -Sbh -o {output}
         """
