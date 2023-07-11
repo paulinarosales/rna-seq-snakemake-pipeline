@@ -45,7 +45,7 @@ SAMPLES = SAMPLE_MANIFEST.set_index(['Sample_type',
 
 # ------------------------------ Dictitonaries ------------------------------- #
 
-# GENCODE realeases dictionary (realease -> genome name # UCSC genome equivalent)
+# GENCODE releases dictionary (release -> genome name # UCSC genome equivalent)
 GENCODE_VERSIONS = {
     'M25': 'GRCm38', # mm10
     'M32': 'GRCm39', # mm39
@@ -54,13 +54,27 @@ GENCODE_VERSIONS = {
     # 'M1': 'NCBI37' # mm9 uses different handle
 }
 
+UCSC_VERSIONS = {
+    'M25': 'mm10', # GRCm38
+    'M32': 'mm39', # GRCm39
+    '19': 'h19', # GRCh37
+    '38': 'h38', # GRCh38 
+    # 'M1': 'mm9' # NCBI37 uses different handle
+}
+
 # Output files dictionary
 TARGETS = {'raw_seq': [], 
             'merged_fq': [],
             'trimmed': [],
             'hisat2': [],
             'samtools': [],
+            'samtools_index': [],
             'salmon': [],
+            'feature_counts': [],
+            'counts': [],
+            'bam_coverage': [],
+            'bam_coverage_strnd': [],
+            'te_count': [],
             'unaligned_reads': [],
             'tximeta' : [],
             'ensembl' : [],
@@ -69,8 +83,9 @@ TARGETS = {'raw_seq': [],
             }
     
 # as array for different genomes?
-GENCODE_REALEASE = pd.unique(SAMPLES['Target_genome'])[0]
-GENOME = GENCODE_VERSIONS[GENCODE_REALEASE]
+GENCODE_RELEASE = pd.unique(SAMPLES['Target_genome'])[0]
+GENOME = GENCODE_VERSIONS[GENCODE_RELEASE]
+UCSC_GENOME = UCSC_VERSIONS[GENCODE_RELEASE]
 
 for sample_type, treatment, bio_rep in SAMPLES.index:
     identifier = SAMPLES.loc[(sample_type, treatment, bio_rep), 'Identifier']
@@ -83,10 +98,11 @@ for sample_type, treatment, bio_rep in SAMPLES.index:
             TARGETS['merged_fq'].append(str(FASTQ_DIR / 'merged'/ f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'))
             TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
             TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
-            TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
+            TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.sorted.filtered.bam.bai'))
             TARGETS['salmon'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
             # --------- Downstream analysis
-            TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads_hisat2' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
+            TARGETS['bam_coverage'].append(str(RESULTS_DIR / 'bigWig' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_coverage.bw'))
+            TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
             TARGETS['tximeta'].append(str(RESULTS_DIR / 'read_counts' / 'tximeta' / 'GeneSE_counts.tsv'))
             TARGETS['ensembl'].append(str(EXTERNAL_DATA_DIR / 'genesets' / f'{GENOME}_ensembl_geneset.tsv'))
             TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'dds.Rds'))
@@ -99,17 +115,26 @@ for sample_type, treatment, bio_rep in SAMPLES.index:
         TARGETS['merged_fq'].append(str(FASTQ_DIR / 'merged'/ f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R2.fq.gz'))
         TARGETS['trimmed'].append(str(RESULTS_DIR / 'fastq' / 'trimmed' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}_R1.fq.gz_trimming_report.txt'))
         TARGETS['hisat2'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.bam'))
-        TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.filtered.bam.bai'))
+        TARGETS['samtools'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.sorted.filtered.bam'))
+        TARGETS['samtools_index'].append(str(RESULTS_DIR / 'bam_files' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.hisat2_align.sorted.filtered.bam.bai'))
         TARGETS['salmon'].append(str(RESULTS_DIR / 'read_counts' / 'salmon' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / 'quant.sf'))
+        TARGETS['feature_counts'].append(str(RESULTS_DIR / 'read_counts' / 'featureCounts_allSamples_genecounts.tsv'))
         # --------- Downstream analysis
-        TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads_hisat2' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
+        TARGETS['unaligned_reads'].append(str(QC_DIR / 'unaligned_reads' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}' / f'{sample_type}_{treatment}_Bio-rep_{bio_rep}.blast.unaligned_sequences.tsv'))
         TARGETS['tximeta'].append(str(RESULTS_DIR / 'read_counts' / 'tximeta' / 'GeneSE_counts.tsv'))
         TARGETS['ensembl'].append(str(EXTERNAL_DATA_DIR / 'genesets' / f'{GENOME}_ensembl_geneset.tsv'))
         TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'dds.Rds'))
-        TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'DEGs' / 'DEGs_summary.tsv'))
+        TARGETS['deseq2'].append(str(RESULTS_DIR / 'downstream' / 'differential_expr' / 'DEGs' / 'DEGs_frequency.tsv'))
         # --------- Report
         TARGETS['rmd'].append(str( REPORT_DIR / 'DE_analysis.html'))
-        
+
+
+if config['ALIGNER'] == "HISAT2":
+    TARGETS['counts'].append(TARGETS['feature_counts'])
+elif config['ALIGNER'] == "SALMON":
+    TARGETS['counts'].append(TARGETS['tximeta'])
+# elif config['ALIGNER'] == "BOTH":
+#     TARGETS['counts'].append(TARGETS['feature_counts'], TARGETS['salmon'])
 
 # ------------------------------- Import rules -------------------------------- #
 
@@ -122,6 +147,7 @@ include: 'rules/alignment/samtools.smk'
 include: 'rules/alignment/salmon.smk'
 
 # --------- Downstream analysis
+include: 'rules/alignment/samtools_strand.smk'
 include: 'rules/quality_control/unaligned_read_blast.smk'
 include: 'rules/read_counts/counts_parsing.smk'
 include: 'rules/external_data/get_ensembl_geneset.smk'
@@ -130,8 +156,9 @@ include: 'rules/downstream/deseq2.smk'
 # --------- Report
 include: 'rules/report/generate_Rmd.smk'
 
-
 rule multiqc_report:
+    input:
+        TARGETS['counts']
     output:
         base = directory(str(REPORT_DIR / 'multiqc'))
     params:
@@ -152,18 +179,17 @@ rule multiqc_report:
 
 rule all:
     input:
-        expand('resources/external/gencode_{realease}/{genome}_genome.fa.gz', realease=GENCODE_REALEASE, genome=GENOME),
+        expand('resources/external/gencode_{release}/{genome}_genome.fa.gz', release=GENCODE_RELEASE, genome=GENOME),
         TARGETS['raw_seq'],
         TARGETS['merged_fq'],
         TARGETS['trimmed'],
-        TARGETS['hisat2'],
-        TARGETS['samtools'],
-        TARGETS['salmon'],
+        TARGETS['counts'],
+        TARGETS['samtools_index'],
         str(REPORT_DIR / 'multiqc'),
-        TARGETS['unaligned_reads'],
-        TARGETS['tximeta'],
-        TARGETS['ensembl'],
-        TARGETS['deseq2'],
-        TARGETS['rmd']
+        # TARGETS['unaligned_reads']
+        # TARGETS['tximeta'],
+        # TARGETS['ensembl'],
+        # TARGETS['deseq2']
+        # TARGETS['rmd']
 
     default_target: True

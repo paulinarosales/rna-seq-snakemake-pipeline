@@ -1,5 +1,5 @@
 # --------------------------- Default file paths ---------------------------- #
-SAMPLE_MANIFEST: 'config/sample_manifest.tsv'
+SAMPLE_MANIFEST: 'config/sample_manifest_all.tsv'
 
 RESULTS_DIR: 'results'
 FIGURE_DIR: 'results/figures'
@@ -21,6 +21,10 @@ SUBSET_COLUMN: ''
 SUBSET_VALUE: ''
 
 
+# -------------------------- Specify tools to use -------------------------- #
+
+ALIGNER: 'HISAT2' # options: 'HISAT2' or 'SALMON'
+
 # ----------------------- Params for raw processing ------------------------ #
 
 TRIM_GALORE:
@@ -29,13 +33,21 @@ TRIM_GALORE:
 
 HISAT2:
     KM: 5
+    EXTRA: '--no-mixed'
 
 SAMTOOLS:
     MIN_MAPQ: 20
 
 UNALIGNED_READS:
-    HEAD_N: 10
-    FRACTION: 0.1
+    HEAD_N: 15
+    SUBSAMPLE_FRACT: 0.33
+
+
+FEATURE_COUNTS:
+    COUNT_MODE: '--primary' #  --primary, −−fraction or -M
+    FEATURE_TYPE: 'exon'
+    ATTRIBUTE_TYPE: 'gene_id'
+    EXTRA: ''
 
 # -------------------- Params for downstream analysis ---------------------- #
 
@@ -44,6 +56,8 @@ ENSEMBL_VERSION: 108
 LOW_READS_THRESHOLD: 10
 
 DESEQ2:
+    SUBSET_COLUMN: ''
+    SUBSET_VALUE: ''
     FDR_THRESHOLD: 0.1 # (default 0.1)
     LOG2FC_THRESHOLD: 1
     PADJ_THRESHOLD: 0.05
