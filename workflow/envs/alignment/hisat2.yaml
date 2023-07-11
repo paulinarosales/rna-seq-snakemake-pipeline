@@ -3,3 +3,4 @@ channels:
   - conda-forge
 dependencies:
   - hisat2 =2.1.0
+  - subread =2.0.3
