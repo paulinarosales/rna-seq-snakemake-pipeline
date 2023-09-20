@@ -2,6 +2,32 @@ def _input_rmd(wildcards):
     return expand('resources/external/genesets/{genome}_ensembl_geneset.tsv', genome=GENOME)
 
 
+rule counts_rmarkdown:
+    input:
+        rmd = 'workflow/scripts/report/counts_report.Rmd',
+        sample_manifestTSV = 'config/sample_manifest.tsv',
+        ensembl_geneset = _input_rmd,
+        cts_mtx = 'results/read_counts/featureCounts_allSamples_genecounts.tsv',
+        tcountsRData = 'results/downstream/differential_expr/transformed_counts.RData'
+    output:
+        html = 'reports/counts_report.html',
+        fig_dir = directory(config['FIGURE_DIR'])
+    params:
+    log:
+        'logs/reports/counts_rmd.log'
+    conda:
+        '../../envs/report/Rmd.yaml'
+    resources:
+        mem_mb = 4000
+    shell:
+        """
+        Rscript -e \"rmarkdown::render('{input.rmd}', output_file='../../../{output.html}', \
+        params=list(sample_manifestTSV='../../../{input.sample_manifestTSV}', fig_dir='../../../{output.fig_dir}',\
+        cts_mtx='../../../{input.cts_mtx}', ensembl_geneset='../../../{input.ensembl_geneset}', tcountsRData='../../../{input.tcountsRData}', \
+        log_file='../../../{log}'))\"
+        """
+
+
 
 rule de_rmarkdown:
     input:
@@ -23,7 +49,7 @@ rule de_rmarkdown:
         min_gss = config['CLUSTER_PROF']['MIN_GENESET_SIZE'],
         max_gss = config['CLUSTER_PROF']['MAX_GENESET_SIZE']
     log:
-        'logs/summary.log'
+        'logs/reports/de_rmd.log'
     conda:
         '../../envs/report/Rmd.yaml'
     resources:

@@ -1,0 +1,403 @@
+---
+VignetteBuilder: knitr
+Suggests: BiocStyle, knitr, rmarkdown
+title: "Explorative analysis of RNA-seq counts"
+author: "Paulina Rosales-Becerra"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load libraries
+library(DESeq2)
+library(edgeR)
+# library(DOSE)
+library(DT)
+library(tidyverse)
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(pheatmap)
+library(ComplexHeatmap)
+library(tibble)
+library(RColorBrewer)
+library(ggrepel)
+library(ggvenn)
+library(parameters)
+library(broom)
+library(knitr)
+```
+
+
+```{r read, include = FALSE, warning = FALSE}
+# Snakemake parsing
+sample_manifest <- read.table(params$sample_manifestTSV, header=TRUE, sep="\t")
+ensembl_geneset <- read.table(params$ensembl_geneset, header=TRUE, sep="\t")
+cts <- read.table(params$cts_mtx, header=TRUE, row.names=1, sep="\t", comment.char = "#")
+
+load(params$tcountsRData) # ntd, vsd and rld counts transformation
+
+fig_dir <- file.path(params$fig_dir)
+log_file <- params$log_file
+
+# Format inputs
+rownames(sample_manifest) <- sub("-", ".", paste(sample_manifest$Sample_type, sample_manifest$Treatment, "Bio.rep", sample_manifest$Bio_rep, sep="_"))
+cts <- cts[,6:ncol(cts)]
+names(cts) <- rownames(sample_manifest)
+
+```
+
+```{r colors, include = FALSE, warning = FALSE}
+my_col <- c("#BC3C29FF", "#0072B5FF", "#E18727FF", "#20854EFF", "#7876B1FF", "skyblue3", "#FFDC91FF", "hotpink3", "olivedrab4", "tan4")
+my_col <- my_col[1:unique(sample_manifest$Sample_type)]
+dual_col <- c("#CAB2D6", "#6A3D9A")
+
+blue_col <- brewer.pal(9, "Blues")
+red_col <- brewer.pal(9, "Reds")
+
+pca_col <- scale_colour_manual(name = "Sample_type", values=my_col) # PCA
+
+ann_col <- list(Sample_type = c(my_col)) # pheatmap
+ann_col <- my_col
+names(ann_col) <- unique(sample_manifest$Sample_type)
+ann_col <- list(Sample_type=ann_col, Treatment=dual_col)
+names(ann_col$Treatment) <-  unique(sample_manifest$Treatment)
+
+
+```
+
+
+
+# Sample information
+
+The samples used for the analysis are:
+
+
+```{r samples, echo=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+
+samples <- as.data.frame(table(sample_manifest$Sample_type))
+names(samples) <- c("Sample_type", "No. of samples")
+datatable(samples, options = list(dom = "Bfrti", autoWidth = FALSE, scrollX = TRUE, pageLength = 10), 
+          caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 1: ", htmltools::em("Sample information.")))
+
+```
+
+
+# Counts distribution
+
+```{r cts_freq, echo=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+freq_all <- c()
+cts_cpm <- cpm(cts, log = TRUE)
+
+for(s in colnames(cts)){
+  cts_freq <- data.frame(raw_counts=cts[,s], log2cpm=cts_cpm[,s])
+  
+  # cts_freq <- as.data.frame(table(cts[,s]))
+  # cts_freq$values <- cts[,s]
+  cts_freq$sample <- s
+  cts_freq$target <- sample_manifest[s, "Sample_type"]
+  cts_freq$treatment <- sample_manifest[s, "Treatment"]
+  cts_freq$bio_rep <- sample_manifest[s, "Bio_rep"]
+  
+  freq_all <- rbind(freq_all, cts_freq)
+}
+
+freq_all$bio_rep <- as.factor(freq_all$bio_rep)
+
+
+
+```
+
+Filtering `counts == 0`.
+
+```{r cts_median, echo=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+
+median_cpm <- freq_all$log2cpm[freq_all$raw_counts > 0] %>% median
+
+freq_all %>% filter(raw_counts > 0) %>% ggplot(aes(x = sample, y = log2cpm, fill=target, alpha=treatment)) + 
+                        geom_boxplot() + scale_fill_manual(values=my_col) +
+                        scale_alpha_manual(values=c(0.5, 1), guide = guide_legend(override.aes = list(fill="gray32")) )+
+                        geom_hline(yintercept = median_cpm, lty = 2, col="red") +
+                        labs(x = "Samples", y = expression(log[2](cpm)), fill="Target", alpha="Treatment") + 
+                        scale_x_discrete(labels = NULL, breaks = NULL) + theme_bw() 
+
+
+group_median <- freq_all %>% filter(raw_counts > 0) %>% ggplot(aes(x = treatment, y = log2cpm, fill=bio_rep)) + geom_boxplot() +
+  geom_hline(yintercept = median_cpm, lty = 2, col="red") + facet_wrap(~target) + theme(axis.text.x=element_blank()) + theme_bw() 
+  
+
+```
+
+Unfiltered counts.
+
+```{r cts_raw, echo=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+p_ctsDens <- freq_all %>% ggplot(aes(x=raw_counts+1, fill=bio_rep)) +
+            geom_density(alpha=.5) + geom_vline(xintercept=11, linetype="dashed", color = "red") + 
+            geom_vline(xintercept=51, linetype="dashed", color = "black") +
+            scale_fill_manual(values = my_col[1:2]) +
+            facet_grid(target ~ treatment )  + 
+            # facet_grid(treatment ~ target)  +
+            labs(x = expression(log[10](counts+1)), y = "Density", fill="Biological\nReplicate") + xlim(0,100) +
+            theme_bw() + scale_x_log10()
+
+p_ctsDens
+```
+
+
+Filtering `counts == 0`.
+
+```{r cts_filt, echo=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+p_ctsFilter <- freq_all %>% filter(raw_counts > 0) %>% ggplot(aes(x=raw_counts, fill=bio_rep)) +
+            geom_density(alpha=.5) + geom_vline(xintercept=10, linetype="dashed", color = "red") + 
+            geom_vline(xintercept=50, linetype="dashed", color = "black") +
+            scale_fill_manual(values = my_col[1:2]) +
+            facet_grid(target ~ treatment )  + 
+            # facet_grid(treatment ~ target)  +
+            labs(x = expression(log[10](counts)), y = "Density", fill="Biological\nReplicate") + xlim(0,100) +
+            theme_bw() + scale_x_log10()
+
+p_ctsFilter
+```
+
+
+
+# Sample distances
+Using `VST` transformed counts for visualization.
+
+```{r sample_dist, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+heatmap_d <- data.frame(Sample_type=sample_manifest$Sample_type,Treatment=sample_manifest$Treatment, row.names = rownames(sample_manifest))
+
+
+
+sampleDists <- dist(t(assay(vsd)))
+
+
+sampleDistMatrix <- as.matrix(sampleDists)
+# rownames(sampleDistMatrix) <- vsd$Treatment
+
+dist_col <- colorRampPalette(rev(brewer.pal(9, "Blues"))) (nrow(sampleDistMatrix)**2)
+
+p_dist <- ComplexHeatmap::pheatmap(sampleDistMatrix,
+          clustering_distance_rows=sampleDists,
+          clustering_distance_cols=sampleDists,
+          col=dist_col, show_colnames = FALSE, show_rownames=FALSE,
+          annotation_col = heatmap_d, annotation_colors = ann_col, 
+          legend = TRUE, heatmap_legend_param = list(title = "Distance"))
+
+print(p_dist) 
+# pdf(file=file.path(fig_dir, "sample_distances.pdf"), width=8, height=6)
+#     print(p_dist)
+# invisible(dev.off())
+
+
+```
+
+
+
+# PCA
+Using `VST` transformed counts for visualization.
+
+```{r pca, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+intgroup <- c("Sample_type", "Treatment")
+pcsToUse <- 1:2
+
+gene_var <- data.frame(ensembl_gene_id = rownames(assay(vsd)), variance = rowVars(assay(vsd)))
+## ORIGINAL PCS METHOD DESEQ2
+# select the top 500 genes by variance
+select <- order(gene_var$variance, decreasing=TRUE)[seq_len(min(500, nrow(gene_var)))]
+# # perform a PCA on the data in assay(x) for the selected genes
+pca <- prcomp(t(assay(vsd)[select,]))
+# # the contribution to the total variance for each component
+percentVar_all <- pca$sdev^2 / sum( pca$sdev^2 )
+
+if (!all(intgroup %in% names(colData(vsd)))) {
+    stop("the argument 'intgroup' should specify columns of sample_manifest")
+  }
+
+intgroup.df <- as.data.frame(colData(vsd)[, intgroup, drop=FALSE])
+  
+# add the intgroup factors together to create a new grouping factor
+group <- if (length(intgroup) > 1) {
+  factor(apply( intgroup.df, 1, paste, collapse=":"))
+} else {
+  colData(vsd)[[intgroup]]
+}
+```
+
+
+```{r pcs, echo=FALSE, message=FALSE, warning=FALSE, include=TRUE}
+all_pcs <- data.frame(PC= 1:length(percentVar_all), percent = round(100 * percentVar_all))
+all_pcs <- filter(all_pcs, percent>0)
+
+p_pcs <- ggplot(all_pcs, aes(x=PC, y=percent)) +
+          geom_bar(stat="identity", width=0.7, fill="steelblue") + 
+          ylab("Explained variance [%]") +
+          scale_x_discrete(limits = all_pcs$PC) +
+          theme_light()
+
+p_pcs
+```
+
+
+## Top PCs
+
+```{r pca_p, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+# assembly the data for the plot
+pcs <- paste0("PC", pcsToUse)
+d_pca <- data.frame(V1=pca$x[,pcsToUse[1]],
+                V2=pca$x[,pcsToUse[2]],
+                group=group, intgroup.df, name=colnames(vsd))
+colnames(d_pca)[1:2] <- pcs
+
+attr(d_pca, "percentVar") <- percentVar_all[pcsToUse]
+
+
+# d_pca <- plotPCA(vsd, intgroup=c("Sample_type", "Treatment"), returnData=TRUE)
+percentVar <- round(100 * attr(d_pca, "percentVar"))
+
+p_pca <- ggplot(d_pca, aes(PC1, PC2, color=Sample_type, shape=Treatment))+
+          geom_point(size=3) + pca_col +
+          geom_vline(xintercept=0, color="black", linetype=2, alpha=0.4) +
+          geom_hline(yintercept = 0, color="black", linetype=2, alpha=0.4)+
+          labs(x=paste0("PC1: ",percentVar[1],"% variance"), y=paste0("PC2: ",percentVar[2],"% variance"), color="Target") +
+          coord_fixed() +
+          theme_light()
+
+print(p_pca)
+
+# pdf(file=file.path(fig_dir, "PCA.pdf"), width=8, height=6)
+#     print(p_pca)     
+# invisible(dev.off()) 
+```
+
+
+### PC loadings
+
+```{r var_load, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+pc_loadings <- pca$rotation
+
+pc_loadings <- pc_loadings %>% as_tibble(rownames = "ensembl_gene_id")
+
+top_genes <- pc_loadings[1:3] %>% 
+  # convert to a "long" format
+  pivot_longer(matches("PC"), names_to = "PC", values_to = "loading") %>% 
+  # for each PC
+  group_by(PC) %>% 
+  # arrange by descending order of loading
+  arrange(desc(abs(loading))) %>% 
+  # take the 10 top rows
+  slice(1:10) %>% 
+  # pull the gene column as a vector
+  pull(ensembl_gene_id) %>% 
+  # ensure only unique genes are retained
+  unique()
+
+top_loadings <- pc_loadings %>% filter(ensembl_gene_id %in% top_genes)
+top_loadings <- inner_join(top_loadings, ensembl_geneset[,c("ensembl_gene_id", "gene_name", "chromosome", "gene_biotype")], by="ensembl_gene_id")
+top_loadings <- mutate(top_loadings, effect = case_when(abs(top_loadings$PC1) > abs(top_loadings$PC2) ~ "PC1",
+                                                           abs(top_loadings$PC1) < abs(top_loadings$PC2) ~ "PC2"))
+
+x_lim <- max(abs(top_loadings$PC1)) + 0.025
+y_lim <- max(abs(top_loadings$PC2)) + 0.025
+
+bi_col <- c(red_col[8], blue_col[8])
+names(bi_col) <- c("PC1", "PC2")
+
+p_load <- ggplot(data = top_loadings, color = effect) +
+                geom_segment(aes(x = 0, y = 0, xend = PC1, yend = PC2, color = effect), 
+                                  arrow = arrow(length = unit(0.1, "in")),
+                                  alpha = 0.8) +
+                geom_text_repel(aes(x = PC1, y = PC2, label = gene_name), nudge_y = 0.005, size = 3) +
+                scale_x_continuous(expand = c(0.02, 0.02)) +
+                xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+                ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+                labs(color = "Explained by", fontface = "bold") +
+                scale_color_manual(values = bi_col) +
+                xlim(c(-x_lim, x_lim)) + ylim(-y_lim, y_lim) +
+                coord_fixed() +
+                theme_light()
+
+print(p_load)
+
+
+# pdf(file=file.path(fig_dir, "PCA_loadings.pdf"), width=8, height=6)
+#     print(p_load)     
+# invisible(dev.off()) 
+
+datatable(top_loadings[,c("gene_name", "chromosome", "gene_biotype", "PC1", "PC2")], extensions = c("Buttons"), rownames=FALSE,  options = list(autoWidth = FALSE, dom = "Bfrtip", buttons = c("csv", "excel"), 
+          autoWidth = TRUE, scrollX = TRUE), caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 2: ", htmltools::em("Genes with highest loading to PC1 and PC2.")))
+
+```
+
+
+
+## Gene variance
+
+Most variant genes used for PCA.
+
+```{r var_tab, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+gene_var <- inner_join(gene_var, ensembl_geneset[,c("ensembl_gene_id", "gene_name", "chromosome", "gene_biotype")], by="ensembl_gene_id")
+gene_var$ensembl_gene_id <- NULL
+gene_var <- gene_var[,c("gene_name", "chromosome", "gene_biotype", "variance")]
+gene_var <- gene_var[order(gene_var$variance, decreasing = TRUE),]
+
+datatable(gene_var[1:500,], extensions = c("Buttons"), rownames=FALSE, options = list(autoWidth = FALSE, dom = "Bfrtip", buttons = c("csv", "excel"), 
+          autoWidth = TRUE, scrollX = TRUE), caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 3: ", htmltools::em("Top 500 variant genes considered for PCA.")))
+```
+
+
+### By gene biotype
+
+Corresponding frequency of gene biotype categories among most variant genes.
+
+```{r var_cat, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+var_category <- as.data.frame(table(gene_var$gene_biotype[1:500]))
+names(var_category) <- c("Biotype", "Freq")
+var_category <- var_category[order(var_category$Freq, decreasing = TRUE),]
+var_category$Percentage <- round((var_category$Freq/sum(var_category$Freq))*100)
+
+datatable(var_category, extensions = c("Buttons"), rownames=FALSE,  options = list(autoWidth = FALSE, dom = "Bfrtip", buttons = c("csv", "excel"), 
+          autoWidth = TRUE, scrollX = TRUE), caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 4: ", htmltools::em("Gene biotype terms frequency from top 500 variant genes.")))
+
+```
+
+
+### By chromosome
+
+Corresponding frequency of chromosomes among most variant genes.
+
+```{r var_chr, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+var_chr <- as.data.frame(table(gene_var$chromosome[1:500]))
+names(var_chr) <- c("Chromosome", "Freq")
+var_chr <- var_chr[order(var_chr$Freq, decreasing = TRUE),]
+var_chr$Percentage <- round((var_chr$Freq/sum(var_chr$Freq))*100)
+
+datatable(var_chr, extensions = c("Buttons"), rownames=FALSE,  options = list(autoWidth = FALSE, dom = "Bfrtip", buttons = c("csv", "excel"), 
+          autoWidth = TRUE, scrollX = TRUE), caption = htmltools::tags$caption(style = "caption-side: bottom; text-align: center;", 
+          "Table 5: ", htmltools::em("Chromosomes frequency from top 500 variant genes.")))
+
+```
+
+
+
+
