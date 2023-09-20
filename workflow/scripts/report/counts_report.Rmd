@@ -19,19 +19,15 @@ knitr::opts_chunk$set(echo = TRUE)
 # Load libraries
 library(DESeq2)
 library(edgeR)
-# library(DOSE)
 library(DT)
 library(tidyverse)
 library(kableExtra)
 library(dplyr)
 library(ggplot2)
-library(ggsci)
 library(pheatmap)
-library(ComplexHeatmap)
 library(tibble)
 library(RColorBrewer)
 library(ggrepel)
-library(ggvenn)
 library(parameters)
 library(broom)
 library(knitr)
@@ -57,17 +53,27 @@ names(cts) <- rownames(sample_manifest)
 ```
 
 ```{r colors, include = FALSE, warning = FALSE}
-my_col <- c("#BC3C29FF", "#0072B5FF", "#E18727FF", "#20854EFF", "#7876B1FF", "skyblue3", "#FFDC91FF", "hotpink3", "olivedrab4", "tan4")
-my_col <- my_col[1:unique(sample_manifest$Sample_type)]
-dual_col <- c("#CAB2D6", "#6A3D9A")
+pawlette <- c("#bc3c29", # red
+				"#0072b5", # dark blue
+				"#e18727", # orange
+				"#20854e", # dark green
+				"#7876b1", # purple
+				"#ffdc91", # yellow
+				"#6ca6cd", # light blue
+				"#cd6090", # pink
+				"#698b22", # light green
+				"#8b5a2b") # brown
+                
+pawlette <- pawlette[1:unique(sample_manifest$Sample_type)]
+dual_col <- c("#CAB2D6", "#6A3D9A") # purple shades
 
 blue_col <- brewer.pal(9, "Blues")
 red_col <- brewer.pal(9, "Reds")
 
-pca_col <- scale_colour_manual(name = "Sample_type", values=my_col) # PCA
+pca_col <- scale_colour_manual(name = "Sample_type", values=pawlette) # PCA
 
-ann_col <- list(Sample_type = c(my_col)) # pheatmap
-ann_col <- my_col
+ann_col <- list(Sample_type = c(pawlette)) # pheatmap
+ann_col <- pawlette
 names(ann_col) <- unique(sample_manifest$Sample_type)
 ann_col <- list(Sample_type=ann_col, Treatment=dual_col)
 names(ann_col$Treatment) <-  unique(sample_manifest$Treatment)
@@ -125,7 +131,7 @@ Filtering `counts == 0`.
 median_cpm <- freq_all$log2cpm[freq_all$raw_counts > 0] %>% median
 
 freq_all %>% filter(raw_counts > 0) %>% ggplot(aes(x = sample, y = log2cpm, fill=target, alpha=treatment)) + 
-                        geom_boxplot() + scale_fill_manual(values=my_col) +
+                        geom_boxplot() + scale_fill_manual(values=pawlette) +
                         scale_alpha_manual(values=c(0.5, 1), guide = guide_legend(override.aes = list(fill="gray32")) )+
                         geom_hline(yintercept = median_cpm, lty = 2, col="red") +
                         labs(x = "Samples", y = expression(log[2](cpm)), fill="Target", alpha="Treatment") + 
@@ -144,7 +150,7 @@ Unfiltered counts.
 p_ctsDens <- freq_all %>% ggplot(aes(x=raw_counts+1, fill=bio_rep)) +
             geom_density(alpha=.5) + geom_vline(xintercept=11, linetype="dashed", color = "red") + 
             geom_vline(xintercept=51, linetype="dashed", color = "black") +
-            scale_fill_manual(values = my_col[1:2]) +
+            scale_fill_manual(values = pawlette[1:2]) +
             facet_grid(target ~ treatment )  + 
             # facet_grid(treatment ~ target)  +
             labs(x = expression(log[10](counts+1)), y = "Density", fill="Biological\nReplicate") + xlim(0,100) +
@@ -160,7 +166,7 @@ Filtering `counts == 0`.
 p_ctsFilter <- freq_all %>% filter(raw_counts > 0) %>% ggplot(aes(x=raw_counts, fill=bio_rep)) +
             geom_density(alpha=.5) + geom_vline(xintercept=10, linetype="dashed", color = "red") + 
             geom_vline(xintercept=50, linetype="dashed", color = "black") +
-            scale_fill_manual(values = my_col[1:2]) +
+            scale_fill_manual(values = pawlette[1:2]) +
             facet_grid(target ~ treatment )  + 
             # facet_grid(treatment ~ target)  +
             labs(x = expression(log[10](counts)), y = "Density", fill="Biological\nReplicate") + xlim(0,100) +
@@ -400,4 +406,20 @@ datatable(var_chr, extensions = c("Buttons"), rownames=FALSE,  options = list(au
 
 
 
+# Method details
 
+```{r params, echo = FALSE, include = TRUE, warning = FALSE, message = FALSE}
+
+log <- file(log_file)
+
+writeLines(c(paste("## Date:\t", format(Sys.time(), '%d %B, %Y')),
+            "## Count data transformation used for visualization:\t VST",
+            "## CPM counts where calculated using `edgeR`"
+            "## NO batch correction or removal was performed for this analysis",
+            "\nThe analysis was performed by Paulina Rosales-Becerra (paulina.rosales@helmholtz-munich.de)."),
+            log)
+close(log)
+
+readLines(log_file) %>% paste0(collapse="\n") %>% cat
+
+```
