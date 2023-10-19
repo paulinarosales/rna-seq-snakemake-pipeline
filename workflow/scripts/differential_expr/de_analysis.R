@@ -11,16 +11,16 @@ suppressPackageStartupMessages({
 })
 
 # ---------- Snakemake parsing ---------- #
-ddsRds = snakemake@input[["ddsRds"]]
-geneset = snakemake@input[["geneset"]]
+ddsRds <- snakemake@input[["ddsRds"]]
+geneset <- snakemake@input[["geneset"]]
 
-degs_dir = snakemake@output[["degs_dir"]]
-degs_sumTSV = snakemake@output[["degs_summaryTSV"]]
-degs_freqTSV = snakemake@output[["degs_freqTSV"]]
+degs_dir <- snakemake@output[["degs_dir"]]
+degs_sumTSV <- snakemake@output[["degs_summaryTSV"]]
+degs_freqTSV <- snakemake@output[["degs_freqTSV"]]
 
-fdr_th = as.numeric(snakemake@params[["fdr_th"]])
-log2fc_th = as.numeric(snakemake@params[["log2fc_th"]])
-padj_th = as.numeric(snakemake@params[["padj_th"]])
+fdr_th <- as.numeric(snakemake@params[["fdr_th"]])
+log2fc_th <- as.numeric(snakemake@params[["log2fc_th"]])
+padj_th <- as.numeric(snakemake@params[["padj_th"]])
 
 de_genes <- c()
 
@@ -30,22 +30,33 @@ dds <- readRDS(ddsRds)
 geneset <- read.table(geneset, header=TRUE, sep="\t")
 
 contrast <- resultsNames(dds)[2:length(resultsNames(dds))]
-print(contrast)
 cat("\n")
 
-cat("Getting DESeq2 results for different contrasts...\n", sep="\n")
+# Summary table
+degs_sum <- data.frame(Contrast = contrast, 
+                        Total_DEGs = numeric(length(contrast)), 
+                        DEGs_only = paste(degs_dir, "/", contrast, "/", contrast, "_DEGs_only.tsv", sep=""), 
+                        DEGs_all = paste(degs_dir, "/", contrast, "/", contrast, "_DE_all_genes.tsv", sep=""), 
+                        DEGs_lfc = paste(degs_dir, "/", contrast, "/", contrast, "_DE_all_genes_LFCshrink.tsv", sep=""))
+
+
+cat("Getting DESeq2 results for the following contrasts:\n", sep="\n")
+cat(contrast)
+cat("\n")
 cat(paste("FDR used:", fdr_th), sep="\n")
 
-for (con in contrast){
-        cat(paste("Contrast:\t", con), sep="\n")
-        res <- results(dds, name=con, alpha=fdr_th)
+for (i in 1:nrow(degs_sum)){
+        cat(paste("Contrast:\t", degs_sum$Contrast[i]), sep="\n")
+        res <- results(dds, name=degs_sum$Contrast[i], alpha=fdr_th)
         head(res)
         summary(res)
-        cat(paste("Number of significant records padj < 0.05:", sum(res$padj < 0.05, na.rm=TRUE)), sep="\n")
+        cat(paste("Number of significant records padj 0.05:", sum(res$padj < 0.05, na.rm=TRUE)), sep="\n")
 
         # LFC shrinkage
+        # cat("Performing LFC shrinkage using apeglm method...", sep="\n")
+        # resLFC <- lfcShrink(dds, coef=degs_sum$Contrast[i], type="apeglm", quiet=TRUE)
         cat("Performing LFC shrinkage using ashr method...", sep="\n")
-        resLFC <- lfcShrink(dds, coef=con, type="ashr", quiet=TRUE)
+        resLFC <- lfcShrink(dds, coef=degs_sum$Contrast[i], type="ashr", quiet=TRUE)
         resLFC <- as.data.frame(resLFC) %>% rownames_to_column("ensembl_gene_id")
         resLFC <- inner_join(geneset, resLFC, by="ensembl_gene_id")
         resLFC <- resLFC[order(resLFC$log2FoldChange, decreasing = T),] 
@@ -60,24 +71,31 @@ for (con in contrast){
         # con_handle = paste(condition[1], "_vs_" condition[2], sep="")
 
         # stopifnot(nrow(degsAll) > 0 & nrow(degsFilter) > 0)
+
+        if (!dir.exists(dirname(degs_sum$DEGs_all[i]))){
+        dir.create(dirname(degs_sum$DEGs_all[i]))
+        }
+        
         if(nrow(degsAll) > 0){
-                write.table(resLFC, file=paste(degs_dir, "/", con, "_DE_all_genes_LFCshrink.tsv", sep=""), sep="\t", quote=FALSE, row.names=FALSE)
-                write.table(degsAll, file=paste(degs_dir, "/", con, "_DE_all_genes.tsv", sep=""), sep="\t", quote=FALSE, row.names=FALSE)
+                write.table(resLFC, file=degs_sum$DEGs_lfc[i], sep="\t", quote=FALSE, row.names=FALSE)
+                write.table(degsAll, file=degs_sum$DEGs_all[i], sep="\t", quote=FALSE, row.names=FALSE)
         }else{
                 cat("\tNo entries produced with results()", sep="\n")
         }
         if(nrow(degsFilter) > 0){
-                write.table(degsFilter, file=paste(degs_dir, "/", con, "_DEGs_only.tsv", sep=""), sep="\t", quote=FALSE, row.names=FALSE)
+                degs_sum$Total_DEGs[i] <- nrow(degsFilter)
+                write.table(degsFilter, file=degs_sum$DEGs_only[i], sep="\t", quote=FALSE, row.names=FALSE)
                 de_genes <- c(de_genes, degsFilter$ensembl_gene_id)
-        }else{
+        }else{  
                 cat("\tNo DEGs found after filtering", sep="\n")
         }
-
-        de_genes <- c(de_genes, degsFilter$ensembl_gene_id)
 
         cat("\n")
 }
 
+degs_sum <- degs_sum[order(degs_sum$Total_DEGs, decreasing = FALSE),]
+
+write.table(degs_sum, file=degs_sumTSV, sep="\t", quote=FALSE, row.names=FALSE)
 
 cat("Identifying most frequent DEGs...\n", sep="\n")
 de_genes <- as.data.frame(table(de_genes))
@@ -88,23 +106,5 @@ de_genes <- de_genes[order(de_genes$Freq, decreasing = TRUE),]
 write.table(de_genes, file=degs_freqTSV, sep="\t", quote=FALSE, row.names=FALSE)
 cat("\n")
 
-cat("Counting total DEGs for all contrasts...\n", sep="\n")
-file.create(degs_sumTSV)
-command <- paste("wc -l ",  degs_dir, "/*_DEGs_only.tsv > ", degs_sumTSV, sep="")
-system(command)
-
-degs_sum <- read.table(degs_sumTSV, header=FALSE, sep="")
-degs_sum <- degs_sum[-nrow(degs_sum),]
-names(degs_sum) <- c("Total_DEGs", "DEGs_only")
-degs_sum$Total_DEGs <- degs_sum$Total_DEGs-1
-degs_sum <- degs_sum[order(degs_sum$Total_DEGs, decreasing = FALSE),]
-degs_sum$DEGs_all <- sub("_DEGs_only.tsv", "_DE_all_genes.tsv", degs_sum$DEGs_only)
-degs_sum$DEGs_lfc <- sub("_DEGs_only.tsv", "_DE_all_genes_LFCshrink.tsv", degs_sum$DEGs_only)
-degs_sum$Contrast <- sub("_DEGs_only.tsv", "", basename(degs_sum$DEGs_only))
-
-write.table(degs_sum, file=degs_sumTSV, sep="\t", quote=FALSE, row.names=FALSE)
-cat("\n")
-
-
 cat("DONE!", sep="\n")
-# cat(paste("Output:", degs_dir, degs_sumTSV, sep="\n\t"), sep="\n")
+cat(paste("Outputs:", degs_dir, degs_sumTSV, degs_freqTSV, sep="\n\t"), sep="\n")
