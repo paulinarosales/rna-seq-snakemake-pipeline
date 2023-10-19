@@ -23,7 +23,7 @@ SUBSET_VALUE: ''
 
 # -------------------------- Specify tools to use -------------------------- #
 
-ALIGNER: 'HISAT2' # options: 'HISAT2' or 'SALMON'
+ALIGNER: 'SALMON-TECOUNT' # options: 'HISAT2', 'SALMON-TXIMETA' or 'SALMON-TECOUNT' (warning: check necessary salmon args when using SALMON-TE)
 
 # ----------------------- Params for raw processing ------------------------ #
 
@@ -44,7 +44,7 @@ UNALIGNED_READS:
 
 
 FEATURE_COUNTS:
-    COUNT_MODE: '--primary' #  --primary, −−fraction or -M
+    # COUNT_MODE: '--primary' #  --primary, −−fraction or -M
     FEATURE_TYPE: 'exon'
     ATTRIBUTE_TYPE: 'gene_id'
     EXTRA: ''
@@ -56,8 +56,13 @@ ENSEMBL_VERSION: 108
 LOW_READS_THRESHOLD: 10
 
 DESEQ2:
+    # MODEL
+    DESIGN_FORMULA: '~ Sample_type + Treatment + Sample_type:Treatment'
+    RELEVEL_COLUMNS: ['Sample_type', 'Treatment'] # warning: needs to be a vector
     SUBSET_COLUMN: ''
     SUBSET_VALUE: ''
+    LOWREADS_THRESHOLD: 10
+    # ANALYSIS
     FDR_THRESHOLD: 0.1 # (default 0.1)
     LOG2FC_THRESHOLD: 1
     PADJ_THRESHOLD: 0.05
@@ -66,3 +71,9 @@ CLUSTER_PROF:
     PADJ_THRESHOLD: 0.05
     MIN_GENESET_SIZE: 3
     MAX_GENESET_SIZE: 800
+
+TE_COUNT:
+    STRANDED: 'no' # options: no, forward, reverse  (default: no)
+    MODE: 'multi' # options: uniq, multi  (default: multi)
+    ITERATION: 100 # (default 100)
+    EXTRA: ''

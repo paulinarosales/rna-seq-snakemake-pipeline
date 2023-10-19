@@ -9,52 +9,64 @@ suppressPackageStartupMessages({
 
 
 # ---------- Snakemake parsing ---------- #
-# gse_countsRds = snakemake@input[["gse_countsRds"]]
-sample_manifestTSV = snakemake@input[["sample_manifestTSV"]]
-gene_countsTSV = snakemake@input[["gene_countsTSV"]]
-ddsRds = snakemake@output[["ddsRds"]]
-tcountsRData = snakemake@output[["tcountsRData"]]
-subset_col = snakemake@params[["subset_col"]]
-subset_val = snakemake@params[["subset_val"]]
-reads_th = snakemake@params[["reads_th"]]
-aligner = snakemake@params[["aligner"]]
+# gse_countsRds <- snakemake@input[["gse_countsRds"]]
+sample_manifestTSV <- snakemake@input[["sample_manifestTSV"]]
+gene_countsTSV <- snakemake@input[["gene_countsTSV"]]
+ddsRds <- snakemake@output[["ddsRds"]]
+tcountsRData <- snakemake@output[["tcountsRData"]]
+design_formula <- as.formula(snakemake@params[["design_formula"]])
+relevel_col <- snakemake@params[["relevel_columns"]]
+# subset_col <- snakemake@params[["subset_col"]]
+# subset_val <- snakemake@params[["subset_val"]]
+reads_th <- snakemake@params[["reads_th"]]
+aligner <- snakemake@params[["aligner"]]
 
 
 if (aligner == "HISAT2"){
-        cat("Creating DESeq data set from Hisat2-featureCounts count matrix...", sep="\n")
-
+        cat("Creating DESeqDataSet from Hisat2-featureCounts count matrix...", sep="\n")
         coldata <- read.table(sample_manifestTSV, header=TRUE, sep="\t")
         rownames(coldata) <- sub("-", ".", paste(coldata$Sample_type, coldata$Treatment, "Bio.rep", coldata$Bio_rep, sep="_"))
-        subset <- rownames(coldata[coldata[[subset_col]]==subset_val,])
+        # subset <- rownames(coldata[coldata[[subset_col]]==subset_val,])
 
         cts <- read.table(gene_countsTSV, header=TRUE, row.names=1, sep="\t", comment.char = "#")
         cts <- cts[,6:ncol(cts)]
         names(cts) <- rownames(coldata)
 
-        coldata <- coldata[subset,]
-        cts <- cts[,subset]
+        # coldata <- coldata[subset,]
+        # cts <- cts[,subset]
 
         dds <- DESeqDataSetFromMatrix(countData = round(cts),
                               colData = coldata,
-                              design = ~ Sample_type + Treatment + Sample_type:Treatment) # test treatment effect is different accross sample_types
+                              design = design_formula)
+
 }else if (aligner == "SALMON"){
-        cat("Creating DESeq data set from Salmon-tximeta count matrix...", sep="\n")
+        cat("Creating DESeqDataSet from Salmon-tximeta count matrix...", sep="\n")
         gse <- readRDS(gse_countsRds)
-        dds <- DESeqDataSet(gse, design = ~ Treatment)
+        dds <- DESeqDataSet(gse, design = design_formula)
+
+}else if (aligner == "SALMON-TECOUNT"){
+        cat("Creating DESeqDataSet from Salmon-TEcounts matrix...", sep="\n")
+        coldata <- read.table(sample_manifestTSV, header=TRUE, sep="\t")
+        rownames(coldata) <- sub("-", ".", paste(coldata$Sample_type, coldata$Treatment, "Bio.rep", coldata$Bio_rep, sep="_"))
+        # subset <- rownames(coldata[coldata[[subset_col]]==subset_val,])
+
+        cts <- read.table(gene_countsTSV, header=TRUE, row.names=1, sep="\t")
+        names(cts) <- rownames(coldata)
+
+        # coldata <- coldata[subset,]
+        # cts <- cts[,subset]
+        dds <- DESeqDataSetFromMatrix(countData = round(cts),
+                              colData = coldata,
+                              design = design_formula)
 }
+cat("\n")
 
-# Reference (multi) level
-ref_lvl <- as.character(unique(dds$Treatment[dds$Control == 1]))
-dds$Treatment <- relevel(dds$Treatment, ref = ref_lvl)
-
-ref_lvl <- as.character(unique(dds$Sample_type[dds$Control == 1]))
-dds$Sample_type <- relevel(dds$Sample_type, ref = ref_lvl)
-
-mtx <- model.matrix(~ dds$Sample_type + dds$Treatment)
-write.table(mtx, file="results/downstream/differential_expr/model_SIMPLE.tsv", quote=FALSE, row.names=FALSE, sep="\t")
-
-mtx <- model.matrix(~ dds$Sample_type + dds$Treatment + dds$Sample_type:dds$Treatment)
-write.table(mtx, file="results/downstream/differential_expr/model_INTERACT.tsv", quote=FALSE, row.names=FALSE, sep="\t")
+cat("Releveling DESeqDataSet to according to:", sep="\n")
+for(col in relevel_col){
+        ref_lvl <- as.character(unique(dds[[col]][dds$Control == 1]))
+        dds[[col]] <- relevel(dds[[col]], ref = ref_lvl)
+        cat(paste("\t", col, ": ", ref_lvl, sep=""), sep="\n")
+}
 
 cat("\n")
 
