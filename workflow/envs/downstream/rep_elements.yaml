@@ -1,0 +1,6 @@
+channels:
+  - conda-forge
+  - defaults
+  - bioconda
+dependencies:
+  - tetranscripts =2.2.3
